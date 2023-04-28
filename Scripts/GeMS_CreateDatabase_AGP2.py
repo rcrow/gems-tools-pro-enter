@@ -202,6 +202,7 @@ def rename_field(defs, start_name, end_name):
 def main(thisDB, coordSystem, nCrossSections):
     # create feature dataset GeologicMap
     addMsgAndPrint("  Creating feature dataset GeologicMap...")
+
     try:
         arcpy.CreateFeatureDataset_management(thisDB, "GeologicMap", coordSystem)
     except:
@@ -383,8 +384,10 @@ def main(thisDB, coordSystem, nCrossSections):
         thisDB + "/GeoMaterialDict",
     )
     #   make GeoMaterials domain
+    arcpy.env.workspace = thisDB
     arcpy.TableToDomain_management(
-        thisDB + "/GeoMaterialDict",
+        #thisDB + "/GeoMaterialDict",
+        thisDB + "/" + arcpy.ListTables('*GEMS.GeoMaterialDict')[0],
         "GeoMaterial",
         "IndentedName",
         thisDB,
@@ -392,7 +395,8 @@ def main(thisDB, coordSystem, nCrossSections):
     )
     #   attach it to DMU field GeoMaterial
     arcpy.AssignDomainToField_management(
-        thisDB + "/DescriptionOfMapUnits", "GeoMaterial", "GeoMaterials"
+        #thisDB + "/DescriptionOfMapUnits", "GeoMaterial", "GeoMaterials"
+        thisDB + "/" + arcpy.ListTables('*GEMS.DescriptionOfMapUnits')[0], "GeoMaterial", "GeoMaterials"
     )
     #  Make GeoMaterialConfs domain, attach it to DMU field GeoMaterialConf
     arcpy.CreateDomain_management(
@@ -403,7 +407,8 @@ def main(thisDB, coordSystem, nCrossSections):
             thisDB, "GeoMaterialConfidenceValues", val, val
         )
     arcpy.AssignDomainToField_management(
-        thisDB + "/DescriptionOfMapUnits",
+        #thisDB + "/DescriptionOfMapUnits",
+        thisDB + "/" + arcpy.ListTables('*GEMS.DescriptionOfMapUnits')[0],
         "GeoMaterialConfidence",
         "GeoMaterialConfidenceValues",
     )
@@ -518,21 +523,28 @@ def main(thisDB, coordSystem, nCrossSections):
 
 
 def createDatabase(outputDir, thisDB):
-    addMsgAndPrint("  Creating geodatabase " + thisDB + "...")
-    if arcpy.Exists(outputDir + "/" + thisDB):
-        addMsgAndPrint("  Geodatabase " + thisDB + " already exists.")
-        addMsgAndPrint("   forcing exit with error")
-        raise arcpy.ExecuteError
-    try:
-        # removed check for mdb. Personal geodatabases are out - ET
-        if thisDB[-4:] == ".gdb":
+    if thisDB[-4:] == ".gdb":
+        addMsgAndPrint("  Creating geodatabase " + thisDB + "...")
+        if arcpy.Exists(outputDir + "/" + thisDB):
+            addMsgAndPrint("  Geodatabase " + thisDB + " already exists.")
+            addMsgAndPrint("   forcing exit with error")
+            raise arcpy.ExecuteError      
+        try:
+            # removed check for mdb. Personal geodatabases are out - ET
             arcpy.CreateFileGDB_management(outputDir, thisDB)
-        return True
-    except:
-        addMsgAndPrint("Failed to create geodatabase " + outputDir + "/" + thisDB)
-        addMsgAndPrint(arcpy.GetMessages(2))
-        return False
+            return True
+        except:
+            addMsgAndPrint("Failed to create geodatabase " + outputDir + "/" + thisDB)
+            addMsgAndPrint(arcpy.GetMessages(2))
+            return False
 
+    if outputDir[-4:] == '.sde':
+        arcpy.env.workspace = outputDir
+        if len(arcpy.ListDatasets('*GeologicMap')) > 0:
+            addMsgAndPrint("  Enterprise geodatabase objects already exist.")
+            addMsgAndPrint("   forcing exit with error")
+            raise arcpy.ExecuteError  
+        return True
 
 #########################################
 
@@ -544,10 +556,13 @@ if len(sys.argv) >= 6:
     outputDir = sys.argv[1]
     if outputDir == "#":
         outputDir = os.getcwd()
-    outputDir = outputDir.replace("\\", "/")
+    outputDir = outputDir.replace("\\", "/") 
+    if outputDir[-4:]=='.sde':
+        addMsgAndPrint('Creating GeMS database in enterprise geodatabase')
 
     thisDB = sys.argv[2]
-    thisDB = thisDB + ".gdb"
+    if outputDir[-4:]!='.sde':
+        thisDB = thisDB + ".gdb"
 
     coordSystem = sys.argv[3]
 
@@ -597,10 +612,13 @@ if len(sys.argv) >= 6:
 
     # create gdb in output directory and run main routine
     if createDatabase(outputDir, thisDB):
-        thisDB = os.path.join(outputDir, thisDB)
+        if outputDir[-4:] == ".sde":
+            thisDB = outputDir   #points to .sde file   
+        elif outputDir[-4:] == ".gdb":
+            thisDB = os.path.join(outputDir, thisDB)
         # Arc 10 version refreshed ArcCatalog here, but there is no equivalent with AGPro
         main(thisDB, coordSystem, nCrossSections)
-
+        
     # try to write a readme within the .gdb
     if thisDB[-4:] == ".gdb":
         try:

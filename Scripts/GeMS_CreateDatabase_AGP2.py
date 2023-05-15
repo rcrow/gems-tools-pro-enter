@@ -202,7 +202,8 @@ def rename_field(defs, start_name, end_name):
 def main(thisDB, coordSystem, nCrossSections):
     # create feature dataset GeologicMap
     addMsgAndPrint("  Creating feature dataset GeologicMap...")
-
+    addMsgAndPrint("thisDB: " + thisDB)
+    
     try:
         arcpy.CreateFeatureDataset_management(thisDB, "GeologicMap", coordSystem)
     except:
@@ -387,7 +388,7 @@ def main(thisDB, coordSystem, nCrossSections):
     arcpy.env.workspace = thisDB
     arcpy.TableToDomain_management(
         #thisDB + "/GeoMaterialDict",
-        thisDB + "/" + arcpy.ListTables('*GEMS.GeoMaterialDict')[0],
+        thisDB + "/" + arcpy.ListTables('*GeoMaterialDict')[0],
         "GeoMaterial",
         "IndentedName",
         thisDB,
@@ -396,7 +397,7 @@ def main(thisDB, coordSystem, nCrossSections):
     #   attach it to DMU field GeoMaterial
     arcpy.AssignDomainToField_management(
         #thisDB + "/DescriptionOfMapUnits", "GeoMaterial", "GeoMaterials"
-        thisDB + "/" + arcpy.ListTables('*GEMS.DescriptionOfMapUnits')[0], "GeoMaterial", "GeoMaterials"
+        thisDB + "/" + arcpy.ListTables('*DescriptionOfMapUnits')[0], "GeoMaterial", "GeoMaterials"
     )
     #  Make GeoMaterialConfs domain, attach it to DMU field GeoMaterialConf
     arcpy.CreateDomain_management(
@@ -408,7 +409,7 @@ def main(thisDB, coordSystem, nCrossSections):
         )
     arcpy.AssignDomainToField_management(
         #thisDB + "/DescriptionOfMapUnits",
-        thisDB + "/" + arcpy.ListTables('*GEMS.DescriptionOfMapUnits')[0],
+        thisDB + "/" + arcpy.ListTables('*DescriptionOfMapUnits')[0],
         "GeoMaterialConfidence",
         "GeoMaterialConfidenceValues",
     )

@@ -22,7 +22,7 @@
 # Edits 10/8/20 to update to Ralph's latest changes (above), Evan Thoms
 # 23 December 2020: Changed how MapUnitPoints feature class is created, so that it follows definition in GeMS_Definitions.py - RH
 
-# Christian Halsted: 4/28/2023 updated to allow tool to create GeMS schema in an ESRI enterprise geodatabase
+# 4/28/2023: Christian Halsted: updated to allow tool to create GeMS schema in an ESRI enterprise geodatabase
 
 import arcpy, sys, os, os.path
 from GeMS_Definition import (

@@ -30,6 +30,11 @@ from GeMS_Definition import (
     GeoMaterialConfidenceValues,
     DefaultExIDConfidenceValues,
     IDLength,
+    #---7/25/2023 CHH, added for multimap database
+    multimap_fields,
+    # MapTypeValues,
+    # MapScaleValues,
+    #---------------------------------------------
 )
 from GeMS_utilityFunctions import *
 import copy
@@ -200,17 +205,50 @@ def rename_field(defs, start_name, end_name):
     arcpy.AddMessage(f_list)
     return f_list
 
+def showPyMessage(message):
+	arcpy.AddMessage(message)
+	print(message)
+#---7/25/2023 CHH, remove multimap fields from tableDict if not using EGDB
+def remove_multimap_fields(thisDB):
+    #showPyMessage(tableDict.keys())
+    for table in tableDict.keys():
+        showPyMessage(table)
+        fldList = tableDict[table]
+        # print(fldList)
+        showPyMessage(fldList)
+        # for field in multimap_fields:
+            # print(field)
+            # fldList.remove(field)
+        # print(fldList) 
+        # showPyMessage(fldList)     
+
+    
+    # for fld in fldList:
+        # print(fld)
+        # if thisDB[-4:]=='.sde':
+            # for field in multimap_fields:
+                # print(field)
+                # if field == fld:
+                    # print('removing')
+                    # fldList.remove(field)
+    # print(fldList)            
+#-------------------------------------       
 
 def main(thisDB, coordSystem, nCrossSections):
     # create feature dataset GeologicMap
     addMsgAndPrint("  Creating feature dataset GeologicMap...")
     addMsgAndPrint("thisDB: " + thisDB)
     
+    #---7/25/2023 CHH, removes multimap fields if not creating an EGDB
+    showPyMessage(tableDict['MapUnitPolys'])
+    #remove_multimap_fields(thisDB)
+    sys.exit()    
+    
     try:
         arcpy.CreateFeatureDataset_management(thisDB, "GeologicMap", coordSystem)
     except:
         addMsgAndPrint(arcpy.GetMessages(2))
-
+    
     # create feature classes in GeologicMap
     # poly feature classes
     featureClasses = ["MapUnitPolys"]
@@ -220,7 +258,7 @@ def main(thisDB, coordSystem, nCrossSections):
     for featureClass in featureClasses:
         fieldDefs = tableDict[featureClass]
         if addLTYPE and fc != "DataSourcePolys":
-            fieldDefs.append(["PTYPE", "String", "NullsOK", 50])
+            fieldDefs.append(["PTYPE", "String", "NullsOK", 50])        
         createFeatureClass(thisDB, "GeologicMap", featureClass, "POLYGON", fieldDefs)
 
     # line feature classes
@@ -232,7 +270,7 @@ def main(thisDB, coordSystem, nCrossSections):
     for featureClass in featureClasses:
         fieldDefs = tableDict[featureClass]
         if featureClass in ["ContactsAndFaults", "GeologicLines"] and addLTYPE:
-            fieldDefs.append(["LTYPE", "String", "NullsOK", 50])
+            fieldDefs.append(["LTYPE", "String", "NullsOK", 50])      
         createFeatureClass(thisDB, "GeologicMap", featureClass, "POLYLINE", fieldDefs)
 
     # point feature classes
@@ -472,6 +510,25 @@ def main(thisDB, coordSystem, nCrossSections):
         )
         del cursor
 
+    #---7/25/2023 CHH, if EGDB then add multimap domains to fields
+    #  Make MapType domain, attach it to MapType field 
+    arcpy.CreateDomain_management(
+        thisDB, "MapTypeValues", "", "TEXT", "CODED"
+    )
+    for val in GeoMaterialConfidenceValues:
+        arcpy.AddCodedValueToDomain_management(
+            thisDB, "GeoMaterialConfidenceValues", val, val
+        )
+    arcpy.AssignDomainToField_management(
+        #thisDB + "/DescriptionOfMapUnits",
+        thisDB + "/" + arcpy.ListTables('*DescriptionOfMapUnits')[0],
+        "GeoMaterialConfidence",
+        "GeoMaterialConfidenceValues",
+    )   
+    
+    
+    #-------------------------------------------------------------
+    
     # if cartoReps, add cartographic representations to all feature classes
     # trackEdits, add editor tracking to all feature classes and tables
     if cartoReps or trackEdits:

@@ -355,7 +355,7 @@ DefaultExIDConfidenceValues = [
     ],
 ]
 
-#---7/25/2023 CHH, map type domain list-------
+#---7/25/2023 CHH, map type and scale domain lists-------
 MapTypeValues = ["Bedrock", "Surficial"]
 MapScaleValues = ["24000","100000","250000","500000"]
 #---------------------------------------------

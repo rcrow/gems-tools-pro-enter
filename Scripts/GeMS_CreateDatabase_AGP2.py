@@ -32,8 +32,8 @@ from GeMS_Definition import (
     IDLength,
     #---7/25/2023 CHH, added for multimap database
     multimap_fields,
-    # MapTypeValues,
-    # MapScaleValues,
+    MapTypeValues,
+    MapScaleValues,
     #---------------------------------------------
 )
 from GeMS_utilityFunctions import *
@@ -240,9 +240,9 @@ def main(thisDB, coordSystem, nCrossSections):
     addMsgAndPrint("thisDB: " + thisDB)
     
     #---7/25/2023 CHH, removes multimap fields if not creating an EGDB
-    showPyMessage(tableDict['MapUnitPolys'])
-    #remove_multimap_fields(thisDB)
-    sys.exit()    
+    #showPyMessage(tableDict['MapUnitPolys'])
+    remove_multimap_fields(thisDB)
+    
     
     try:
         arcpy.CreateFeatureDataset_management(thisDB, "GeologicMap", coordSystem)
@@ -511,22 +511,37 @@ def main(thisDB, coordSystem, nCrossSections):
         del cursor
 
     #---7/25/2023 CHH, if EGDB then add multimap domains to fields
-    #  Make MapType domain, attach it to MapType field 
-    arcpy.CreateDomain_management(
-        thisDB, "MapTypeValues", "", "TEXT", "CODED"
-    )
-    for val in GeoMaterialConfidenceValues:
-        arcpy.AddCodedValueToDomain_management(
-            thisDB, "GeoMaterialConfidenceValues", val, val
-        )
-    arcpy.AssignDomainToField_management(
-        #thisDB + "/DescriptionOfMapUnits",
-        thisDB + "/" + arcpy.ListTables('*DescriptionOfMapUnits')[0],
-        "GeoMaterialConfidence",
-        "GeoMaterialConfidenceValues",
-    )   
-    
-    
+    if thisDB[-4:] == ".sde":
+        addMsgAndPrint("    Adding multimap domains and assigning to fields")
+        #  Make MapType domain, attach it to MapType field 
+        arcpy.CreateDomain_management(thisDB, "MapTypeValues", "", "TEXT", "CODED")
+        for val in MapTypeValues:
+            arcpy.AddCodedValueToDomain_management(thisDB, "MapTypeValues", val, val)
+        arcpy.env.workspace = thisDB
+        dataSets = arcpy.ListDatasets()
+        for ds in dataSets:
+            arcpy.env.workspace = thisDB + "/" + ds
+            for fc in arcpy.ListFeatureClasses():
+                arcpy.AssignDomainToField_management(fc,"MapType","MapTypeValues")   
+        arcpy.env.workspace = thisDB
+        for tbl in arcpy.ListTables():
+            if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
+                arcpy.AssignDomainToField_management(tbl,"MapType","MapTypeValues")
+
+        #  Make MapScale domain, attach it to MapScale field 
+        arcpy.CreateDomain_management(thisDB, "MapScaleValues", "", "TEXT", "CODED")
+        for val in MapScaleValues:
+            arcpy.AddCodedValueToDomain_management(thisDB, "MapScaleValues", val, val)
+        arcpy.env.workspace = thisDB
+        dataSets = arcpy.ListDatasets()
+        for ds in dataSets:
+            arcpy.env.workspace = thisDB + "/" + ds
+            for fc in arcpy.ListFeatureClasses():
+                arcpy.AssignDomainToField_management(fc,"MapScale","MapScaleValues")   
+        arcpy.env.workspace = thisDB
+        for tbl in arcpy.ListTables():
+            if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
+                arcpy.AssignDomainToField_management(tbl,"MapScale","MapScaleValues")            
     #-------------------------------------------------------------
     
     # if cartoReps, add cartographic representations to all feature classes

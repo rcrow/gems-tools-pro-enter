@@ -38,6 +38,11 @@ def addMsgAndPrint(msg, severity=0):
     except:
         pass
 
+#---7/25/2023 CHH, the addMsgAndPrint function doesn't display non-text items very reliably
+def showPyMessage(message):
+	arcpy.AddMessage(message)
+	print(message)
+#-------------------------------------   
 
 def forceExit():
     addMsgAndPrint("Forcing exit by raising ExecuteError")

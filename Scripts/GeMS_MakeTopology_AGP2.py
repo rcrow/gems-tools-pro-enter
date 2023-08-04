@@ -21,12 +21,16 @@ def buildCafMupTopology(inFds, um):
     inCaf = getCaf(inFds)
     caf = os.path.basename(inCaf)
     nameToken = caf.replace("ContactsAndFaults", "")
+    #---8/4/2023 CHH, clears the nameToken of db.schema. text if run on EGDB
+    if len(nameToken) > 0 and nameToken[-1] == '.':
+        nameToken = ''   
+    #-----------------------------------------------------------------------
     if debug:
         addMsgAndPrint("name token=" + nameToken)
     if nameToken == "":
         nameToken = "GeologicMap"
     inMup = inCaf.replace("ContactsAndFaults", "MapUnitPolys")
-
+    
     # First delete any existing topology
     ourTop = nameToken + "_topology"
     testAndDelete(inFds + "/" + ourTop)

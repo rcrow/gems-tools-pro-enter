@@ -355,9 +355,23 @@ DefaultExIDConfidenceValues = [
     ],
 ]
 
-#---7/25/2023 CHH, map type and scale domain lists-------
-MapTypeValues = ["Bedrock", "Surficial"]
-MapScaleValues = ["24000","100000","250000","500000"]
+# #---7/25/2023 CHH, map type and scale domain lists-------
+# MapTypeValues = [
+    # "Bedrock", 
+    # "Surficial"
+# ]
+# MapScaleValues = [
+    # "24000",
+    # "100000",
+    # "250000",
+    # "500000"
+# ]
+MapNameValues = [
+    "augusta",
+    "beaver-pond-se",
+    "camden",
+    "west-rockport"
+]
 #---------------------------------------------
 
 enumeratedValueDomainFieldList = [
@@ -555,8 +569,8 @@ rule2_1_elements = [
 #---7/25/2023 CHH, fields needed in each entity for multimap enterprise geodatabase
 multimap_fields = [
     ["MapName", "String", "NoNulls", 100],
-    ["MapType", "String", "NoNulls", 30],
-    ["MapScale", "String", "NoNulls", 12]
+    # ["MapType", "String", "NoNulls", 30],
+    # ["MapScale", "String", "NoNulls", 12]
 ]
 #----------------------------------------------------------------------------------
 
@@ -571,10 +585,6 @@ for table in startDict.keys():
     for field in oldFields:
         newfields.append(field)
     newfields.append([table + "_ID", "String", "NoNulls", IDLength])
-    #---7/25/2023 CHH, add multimap fields
-    for field in multimap_fields:
-        newfields.append(field)
-    #-------------------------------------
     tableDict[table] = newfields
 
 # build fieldNullsOKDict

@@ -25,7 +25,7 @@ import os, sys
 import string
 import arcpy
 import requests
-import json
+from requests.adapters import HTTPAdapter, Retry
 from distutils.util import strtobool
 import re
 import pandas as pd
@@ -33,15 +33,17 @@ from openpyxl import load_workbook
 from openpyxl.styles.borders import Border, Side
 from openpyxl.styles import Font, PatternFill, Alignment
 import tempfile
-from GeMS_utilityFunctions import *
+import GeMS_utilityFunctions as guf
 
-versionString = "GeMS_GeolexCheck_AGP2.py, 2/19/2021"
+
+versionString = "GeMS_GeolexCheck_AGP2.py, 7/6/2023"
 rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_GeolexCheck_AGP2.py"
-checkVersion(versionString, rawurl, "gems-tools-pro")
+guf.checkVersion(versionString, rawurl, "gems-tools-pro")
 
 # initialize empty list to collect usage matches in order to avoid
 # displaying redundant matches.
 usages = []
+
 
 # STRING AND USAGE
 def sanitize_text(usage_text):
@@ -123,20 +125,34 @@ def parse_age(age_str):
 def units_query(name):
     """Prepare and send the GET request"""
     units_api = r"https://ngmdb.usgs.gov/connect/apiv1/geolex/units/?"
-    params = {"units_in": name}
-    response = requests.get(units_api, params)  # .text
-
-    if not response.status_code == 200:
-        arcpy.AddMessage("")
-        arcpy.AddMessage(f"Server error {response.status_code} with the following url:")
-        arcpy.AddMessage(response.url)
-        arcpy.AddMessage(
-            "The server may be down. Try again later or write to gems@usgs.gov"
+    payload = {"units_in": name}
+    try:
+        s = requests.Session()
+        retries = Retry(
+            total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504]
         )
-        arcpy.AddMessage("")
-        raise SystemError
-    else:
-        return response.json()["results"]
+        s.mount("https://", HTTPAdapter(max_retries=retries))
+
+        # response = requests.get(units_api, params)  # .text
+        response = s.get(units_api, params=payload)
+        if not response.status_code == 200:
+            arcpy.AddMessage("")
+            arcpy.AddMessage(
+                f"Server error {response.status_code} with the following url:"
+            )
+            arcpy.AddMessage(response.url)
+            arcpy.AddMessage(
+                "The server may be down. Try again later or write to gems@usgs.gov"
+            )
+            arcpy.AddMessage("")
+            raise SystemError
+        else:
+            return response.json()["results"]
+    # except ConnectionError as e:
+    except Exception as e:
+        arcpy.AddWarning("There was a problem connecting to GEOLEX.")
+        arcpy.AddWarning(e)
+        return "no connection"
 
 
 # EXCEL
@@ -486,13 +502,18 @@ for row in dmu_df.itertuples():
         sn_results = None
         fn_results = None
         if sn:
+            arcpy.AddMessage(f"Looking for GEOLEX names in {sn}")
             sn_results = units_query(sn)
 
         if fn:
+            arcpy.AddMessage(f"Looking for GEOLEX names in {fn}")
             fn_results = units_query(fn)
 
         # if there are name and fullname matches, take the intersection of the sets
-        if (sn_results and fn_results) or (sn_results and not fn_results):
+        if sn_results == "no connection" and fn_results == "no connection":
+            results = "no connection"
+
+        elif (sn_results and fn_results) or (sn_results and not fn_results):
             results = sn_results
             check_name = sn
 
@@ -518,8 +539,7 @@ for row in dmu_df.itertuples():
         # this will allow the output table to be sorted on HierarchyKey correctly
         ch = "a"
 
-        if results:
-            arcpy.AddMessage(f"Looking for GEOLEX names in {check_name}")
+        if results and not results == "no connection":
             names_only = [result["unit_name"] for result in results]
             names_only = sanitize_matches(names_only, check_name)
         else:
@@ -591,7 +611,27 @@ for row in dmu_df.itertuples():
 
         # there is no match
         else:
-            nomatch = unit_list.extend(["", "", "", "", "", "", "no", "", "", "", ""])
+            if results == "no connection":
+                arcpy.AddMessage("no connection")
+                nomatch = unit_list.extend(
+                    [
+                        "FAILED TO CONNECT TO GEOLEX",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "no",
+                        "",
+                        "",
+                        "",
+                        "",
+                    ]
+                )
+            else:
+                nomatch = unit_list.extend(
+                    ["", "", "", "", "", "", "no", "", "", "", ""]
+                )
 
             # add list to dataframe
             unit_series = pd.Series(unit_list, index=df.columns)

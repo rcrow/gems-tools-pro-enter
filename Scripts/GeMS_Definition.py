@@ -325,6 +325,19 @@ startDict = {
         ["ViewWidth", "String", "NullsOK", defaultLength],
         ["Notes", "String", "NullsOK", defaultLength],
     ],
+    "GeologicPoints": [
+        ["Type", "String", "NoNulls", defaultLength],
+        ["Symbol", "String", "NullsOK", defaultLength],
+        ["Label", "String", "NullsOK", IDLength],
+        ["IdentityConfidence", "String", "NoNulls", IDLength],
+        ["LocationConfidenceMeters", "Single", "NoNulls"],
+        ["PlotAtScale", "Single", "NoNulls"],
+        ["StationsID", "String", "NullsOK", IDLength],
+        ["MapUnit", "String", "NullsOK", mapUnitLength],
+        ["LocationSourceID", "String", "NoNulls", IDLength],
+        ["DataSourceID", "String", "NoNulls", IDLength],
+        ["Notes", "String", "Optional", defaultLength],    
+    ],
 }
 
 

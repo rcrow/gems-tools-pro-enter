@@ -14,19 +14,35 @@ debug = False
 
 
 def buildCafMupTopology(inFds, um):
+    if debug:
+        addMsgAndPrint("inFds=" + inFds)
     if um.upper() == "TRUE":
         useMup = True
     else:
         useMup = False
     inCaf = getCaf(inFds)
+    if debug:
+        addMsgAndPrint("inCaf=" + inCaf)    
     caf = os.path.basename(inCaf)
+    if debug:
+        addMsgAndPrint("caf=" + caf)    
     nameToken = caf.replace("ContactsAndFaults", "")
-    #---8/4/2023 CHH, clears the nameToken of db.schema. text if run on EGDB
-    if len(nameToken) > 0 and nameToken[-1] == '.':
-        nameToken = ''   
+    if debug:
+        addMsgAndPrint("nameToken=" + nameToken)    
+    #---8/4/2023 CHH, clears the nameToken of db.schema. text if run on EGDB dataset  
+    if '.sde' in inFds:
+        thisDB = inFds[0:inFds.find('.sde')+4]
+        desc = arcpy.Describe(thisDB)
+        cp = desc.connectionProperties
+        dbUser = cp.user
+        dbName = cp.database
+        dbNameUserPrefix = dbName + '.' + dbUser + '.'
+        if debug:
+            addMsgAndPrint("dbNameUserPrefix=" + dbNameUserPrefix)
+        nameToken = nameToken.upper().replace(dbNameUserPrefix.upper(),'')
     #-----------------------------------------------------------------------
     if debug:
-        addMsgAndPrint("name token=" + nameToken)
+        addMsgAndPrint("nameToken=" + nameToken)
     if nameToken == "":
         nameToken = "GeologicMap"
     inMup = inCaf.replace("ContactsAndFaults", "MapUnitPolys")

@@ -391,52 +391,41 @@ def main(thisDB, coordSystem, nCrossSections):
     ### GeoMaterials
     addMsgAndPrint("  Setting up GeoMaterialsDict table and domains...")
     #  Copy GeoMaterials table
-    arcpy.Copy_management(
-        os.path.dirname(sys.argv[0]) + "/../Resources/GeMS_lib.gdb/GeoMaterialDict",
-        thisDB + "/" + dbNameUserPrefix + 'GeoMaterialDict',
-    )
-    #   make GeoMaterials domain
+    arcpy.Copy_management(os.path.dirname(sys.argv[0]) + "/../Resources/GeMS_lib.gdb/GeoMaterialDict", thisDB + "/" + dbNameUserPrefix + 'GeoMaterialDict')
+    #  make GeoMaterials domain
     arcpy.env.workspace = thisDB
-    arcpy.TableToDomain_management(
-        thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'GeoMaterialDict')[0],
-        "GeoMaterial",
-        "IndentedName",
-        thisDB,
-        "GeoMaterials",
-    )
-    #   attach it to DMU field GeoMaterial
-    arcpy.AssignDomainToField_management(
-        thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0], "GeoMaterial", "GeoMaterials"
-    )
-    #  Make GeoMaterialConfs domain, attach it to DMU field GeoMaterialConf
-    arcpy.CreateDomain_management(
-        thisDB, "GeoMaterialConfidenceValues", "", "TEXT", "CODED"
-    )
-    for val in GeoMaterialConfidenceValues:
-        arcpy.AddCodedValueToDomain_management(
-            thisDB, "GeoMaterialConfidenceValues", val, val
+    desc = arcpy.Describe(thisDB)
+    if dbNameUserPrefix + "GeoMaterials" not in desc.domains:
+        arcpy.TableToDomain_management(
+            thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'GeoMaterialDict')[0],
+            "GeoMaterial",
+            "IndentedName",
+            thisDB,
+            dbNameUserPrefix + "GeoMaterials"
         )
-    arcpy.AssignDomainToField_management(
-        thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0], "GeoMaterialConfidence", "GeoMaterialConfidenceValues"
-    )
+    #   attach it to DMU field GeoMaterial
+    arcpy.AssignDomainToField_management(thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0], "GeoMaterial", dbNameUserPrefix + "GeoMaterials")
+    #  Make GeoMaterialConfs domain, attach it to DMU field GeoMaterialConf
+    desc = arcpy.Describe(thisDB)
+    if dbNameUserPrefix + "GeoMaterialConfidenceValues" not in desc.domains:
+        arcpy.CreateDomain_management(thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", "", "TEXT", "CODED")
+        for val in GeoMaterialConfidenceValues:
+            arcpy.AddCodedValueToDomain_management(thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", val, val)
+    arcpy.AssignDomainToField_management(thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0], "GeoMaterialConfidence", dbNameUserPrefix + "GeoMaterialConfidenceValues")
 
     # Confidence domains, Glossary entries, and DataSources entry
     if addConfs:
-        addMsgAndPrint(
-            "  Adding standard ExistenceConfidence and IdentityConfidence domains"
-        )
+        addMsgAndPrint("  Adding standard ExistenceConfidence and IdentityConfidence domains")
         #  create domain, add domain values, and link domain to appropriate fields
         addMsgAndPrint("    Creating domain, linking domain to appropriate fields")
-        arcpy.CreateDomain_management(
-            thisDB, "ExIDConfidenceValues", "", "TEXT", "CODED"
-        )
-        for item in DefaultExIDConfidenceValues:  # items are [term, definition, source]
-            code = item[0]
-            arcpy.AddCodedValueToDomain_management(
-                thisDB, "ExIDConfidenceValues", code, code
-            )
+        desc = arcpy.Describe(thisDB)
+        if dbNameUserPrefix + "ExIDConfidenceValues" not in desc.domains:
+            arcpy.CreateDomain_management(thisDB, dbNameUserPrefix + "ExIDConfidenceValues", "", "TEXT", "CODED")
+            for item in DefaultExIDConfidenceValues:  # items are [term, definition, source]
+                code = item[0]
+                arcpy.AddCodedValueToDomain_management(thisDB, dbNameUserPrefix + "ExIDConfidenceValues", code, code)
         arcpy.env.workspace = thisDB
-        dataSets = arcpy.ListDatasets()
+        dataSets = arcpy.ListDatasets(dbNameUserPrefix + '*')
         for ds in dataSets:
             arcpy.env.workspace = thisDB + "/" + ds
             fcs = arcpy.ListFeatureClasses()
@@ -449,9 +438,7 @@ def main(thisDB, coordSystem, nCrossSections):
                         "ScientificConfidence",
                     ):
                         # addMsgAndPrint('    '+ds+'/'+fc+':'+fn)
-                        arcpy.AssignDomainToField_management(
-                            thisDB + "/" + ds + "/" + fc, fn, "ExIDConfidenceValues"
-                        )
+                        arcpy.AssignDomainToField_management(thisDB + "/" + ds + "/" + fc, fn, dbNameUserPrefix + "ExIDConfidenceValues")
         # add definitions of domain values to Glossary
         addMsgAndPrint("    Adding domain values to Glossary")
         ## create insert cursor on Glossary
@@ -475,25 +462,27 @@ def main(thisDB, coordSystem, nCrossSections):
             )
         )
         del cursor
-    sys.exit(0)
+
     #if EGDB then add multimap domains to fields
     if thisDB[-4:] == ".sde":
         addMsgAndPrint("    Adding multimap domains and assigning to fields")
         
         #  Make MapScale domain, attach it to MapScale field 
-        arcpy.CreateDomain_management(thisDB, "MapNameValues", "", "TEXT", "CODED")
-        for val in MapNameValues:
-            arcpy.AddCodedValueToDomain_management(thisDB, "MapNameValues", val, val)
+        desc = arcpy.Describe(thisDB)
+        if dbNameUserPrefix + "MapNameValues" not in desc.domains:
+            arcpy.CreateDomain_management(thisDB, dbNameUserPrefix + "MapNameValues", "", "TEXT", "CODED")
+            for val in MapNameValues:
+                arcpy.AddCodedValueToDomain_management(thisDB, dbNameUserPrefix + "MapNameValues", val, val)
         arcpy.env.workspace = thisDB
-        dataSets = arcpy.ListDatasets()
+        dataSets = arcpy.ListDatasets(dbNameUserPrefix + '*')
         for ds in dataSets:
-            arcpy.env.workspace = thisDB + "/" + dbNameUserPrefix + ds
+            arcpy.env.workspace = thisDB + "/" + ds
             for fc in arcpy.ListFeatureClasses():
-                arcpy.AssignDomainToField_management(fc,"MapName","MapNameValues")   
+                arcpy.AssignDomainToField_management(fc,"MapName",dbNameUserPrefix + "MapNameValues")   
         arcpy.env.workspace = thisDB
-        for tbl in arcpy.ListTables():
+        for tbl in arcpy.ListTables(dbNameUserPrefix + '*'):
             if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
-                arcpy.AssignDomainToField_management(tbl,"MapName","MapNameValues")  
+                arcpy.AssignDomainToField_management(tbl,"MapName",dbNameUserPrefix + "MapNameValues")  
                 
         # #  Make MapType domain, attach it to MapType field 
         # arcpy.CreateDomain_management(thisDB, "MapTypeValues", "", "TEXT", "CODED")
@@ -529,8 +518,8 @@ def main(thisDB, coordSystem, nCrossSections):
     # trackEdits, add editor tracking to all feature classes and tables
     if cartoReps or trackEdits:
         arcpy.env.workspace = thisDB
-        tables = arcpy.ListTables()
-        datasets = arcpy.ListDatasets()
+        tables = arcpy.ListTables(dbNameUserPrefix + '*')
+        datasets = arcpy.ListDatasets(dbNameUserPrefix + '*')
         for dataset in datasets:
             addMsgAndPrint("  Dataset " + dataset)
             arcpy.env.workspace = thisDB + "/" + dataset
@@ -620,7 +609,7 @@ if len(sys.argv) >= 6:
         dbUser = cp.user
         dbName = cp.database
         dbNameUserPrefix = dbName + '.' + dbUser + '.'
-
+            
     thisDB = sys.argv[2]
     if outputDir[-4:]!='.sde':
         thisDB = thisDB + ".gdb"
@@ -678,6 +667,9 @@ if len(sys.argv) >= 6:
         elif outputDir[-4:] == ".gdb":
             thisDB = os.path.join(outputDir, thisDB)
         # Arc 10 version refreshed ArcCatalog here, but there is no equivalent with AGPro
+        if debug:
+            addMsgAndPrint(f"thisDB = {thisDB}") 
+            addMsgAndPrint(f"dbNameUserPrefix = {dbNameUserPrefix}")
         main(thisDB, coordSystem, nCrossSections)
         
     # try to write a readme within the .gdb

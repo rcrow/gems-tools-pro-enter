@@ -261,31 +261,31 @@ def process(db, value_table):
             if template:
                 fc_fields = [f.name for f in arcpy.ListFields(fc_path)]
                 field_defs = gdef.startDict[template]
+                
+                guf.showPyMessage(field_defs)
+                #adds multimap fields to field_defs if creating an EGDB or removes them if they are in field_defs and creating a file geodatabase
+                if db[-4:] == ".sde":
+                    for field in gdef.multimap_fields:
+                        if field not in field_defs:
+                            field_defs.append(field)
+                elif db[-4:] == ".gdb":
+                    for field in gdef.multimap_fields:
+                        if field in field_defs:
+                            field_defs.remove(field)                
+                guf.showPyMessage(field_defs)
+                
                 for fDef in field_defs:
                     dom_spaces = ""
                     if not fDef[0] in fc_fields:
                         try:
                             arcpy.AddMessage(f"{fd_tab}{fc_tab}Adding field {fDef[0]}")
                             if fDef[1] == "String":
-                                arcpy.AddField_management(
-                                    str(fc_path),
-                                    fDef[0],
-                                    transDict[fDef[1]],
-                                    field_length=fDef[3],
-                                    field_is_nullable="NULLABLE",
-                                )
+                                arcpy.AddField_management(str(fc_path),fDef[0],transDict[fDef[1]],field_length=fDef[3],field_is_nullable="NULLABLE")
                             else:
-                                arcpy.AddField_management(
-                                    str(fc_path),
-                                    fDef[0],
-                                    transDict[fDef[1]],
-                                    field_is_nullable="NULLABLE",
-                                )
+                                arcpy.AddField_management(str(fc_path),fDef[0],transDict[fDef[1]],field_is_nullable="NULLABLE")
                             fld_tab = " "
                         except:
-                            arcpy.AddWarning(
-                                f"Failed to add field {fDef[0]} to feature class {fc}"
-                            )
+                            arcpy.AddWarning(f"Failed to add field {fDef[0]} to feature class {fc}")
                     else:
                         fld_tab = ""
 
@@ -303,7 +303,18 @@ def process(db, value_table):
                                     arcpy.AddMessage(f"{fd_tab}{fc_tab}{fld_tab}Domain ExIDConfidenceValues assigned to field {fDef[0]}")
                             except:
                                 arcpy.AddWarning(f"Failed to assign domain ExIDConfidenceValues to field {fDef[0]}")
-
+                        
+                        #add domain for multimap_fields
+                        for flds in gdef.multimap_fields:
+                            if fDef[0] == flds[0]:
+                                try:
+                                    this_field = arcpy.ListFields(fc_path, fDef[0])[0]
+                                    if not this_field.domain == dbNameUserPrefix + flds[0] + "Values":
+                                        arcpy.AssignDomainToField_management(str(fc_path), fDef[0], dbNameUserPrefix + flds[0] + "Values")
+                                        arcpy.AddMessage(f"{fd_tab}{fc_tab}{fld_tab}Domain {dbNameUserPrefix + flds[0]}Values assigned to field {fDef[0]}")
+                                except:
+                                    arcpy.AddWarning(f"Failed to assign domain {dbNameUserPrefix + flds[0]}Values to field {fDef[0]}")                                
+                                    
                         if fDef[0] == "GeoMaterial":
                             # try:
                             this_field = arcpy.ListFields(fc_path, "GeoMaterial")[0]

@@ -11,6 +11,44 @@ import requests
 # I. General utilities
 
 
+def eval_bool(boo):
+    # converts boolean-like strings to Type boolean
+    if boo in [True, "True", "true", "Yes", "yes", "Y", "y", 1]:
+        return True
+    else:
+        return False
+
+
+def empty(x):
+    if x == None:
+        return True
+    try:
+        if str(x).strip() == "":
+            return True
+        else:
+            return False
+    except:  # Fail because we tried to strip() on a non-string value
+        return False
+
+
+def is_bad_null(x):
+    try:
+        if str(x).lower() == "<null>" or str(x) == "" or str(x).strip() == "":
+            return True
+    except:
+        return False
+    else:
+        return False
+
+
+def get_duplicates(table_path, field):
+    vals = [r[0] for r in arcpy.da.SearchCursor(table_path, field) if not r[0] is None]
+    dups = list(set([n for n in vals if vals.count(n) > 1]))
+    dups.sort()
+
+    return dups
+
+
 # tests for null string values and <Null> numeric values
 # Does not test for numeric nulls -9, -9999, etc.
 def stringIsGeMSNull(val):
@@ -290,12 +328,14 @@ def gdb_object_dict(gdb_path):
     # Annotation Polygon FeatureClass
     # this will go into Entity_Type_Definition
     for k, v in new_dict.items():
+        if "dataType" in v:
+            d_type = camel_to_space(v["dataType"])
         if v["dataType"] == "Table":
             v["concat_type"] = "Nonspatial Table"
         elif v["dataType"] == "FeatureClass":
-            v["concat_type"] = f"{v['featureType']} {v['shapeType']} {v['dataType']}"
+            v["concat_type"] = f"{v['featureType']} {v['shapeType']} {d_type}"
         else:
-            v["concat_type"] = v["dataType"]
+            v["concat_type"] = d_type
 
         # for objects that are based on a GeMS object but have a
         # prefix or suffix, record the name of the required GeMS object
@@ -304,12 +344,31 @@ def gdb_object_dict(gdb_path):
         v["gems_equivalent"] = ""
         tableDict_keys = list(gdef.tableDict.keys())
         tableDict_keys.append("GeoMaterialDict")
-        for a in tableDict_keys:
-            # if the CamelCase or snake_case version of a gems object
-            # is found in the table name
-            if any(n in k.lower() for n in (a.lower(), camel_to_snake(a))):
-                # set the gems_equivalent key to the GeMS CamelCase name
-                v["gems_equivalent"] = a
+        if not v["dataType"] in ("Topology", "Annotation"):
+            for a in tableDict_keys:
+                # if the CamelCase or snake_case version of a gems object
+                # is found in the table name
+                if (
+                    any(n in k.lower() for n in (a.lower(), camel_to_snake(a)))
+                    and gdef.shape_dict[a] in v["concat_type"]
+                ):
+                    # set the gems_equivalent key to the GeMS CamelCase name
+                    v["gems_equivalent"] = a
+
+            # caveats
+            if k.lower().endswith("points") and v["gems_equivalent"] == "":
+                v["gems_equivalent"] = "GenericPoints"
+
+            if k.lower().endswith("samples") and v["gems_equivalent"] == "":
+                v["gems_equivalent"] = "GenericSamples"
+
+            if (
+                any(k.lower().endswith(n) for n in ("geologicmap", "geologic_map"))
+            ) and v["concat_type"] == "Feature Dataset":
+                v["gems_equivalent"] = "GeologicMap"
+
+            if any(k.lower().endswith(l) for l in ("label", "labels")):
+                v["gems_equivalent"] = ""
 
     return new_dict
 
@@ -325,6 +384,26 @@ def camel_to_snake(s):
 def convert_bool(boo):
     # converts boolean-like strings to Type boolean
     if boo in [True, "True", "true", "Yes", "yes", "Y", "y", 1]:
+        return True
+    else:
+        return False
+
+
+def camel_to_space(s):
+    return "".join([" " + c.upper() if c.isupper() else c for c in s]).lstrip(" ")
+
+
+def fix_null(x):
+    # x = x.encode('ascii','xmlcharrefreplace')
+    if x.lower() == "<null>":
+        return "&lt;Null&gt;"
+    else:
+        return x
+
+
+def not_empty(x):
+    # will converting x to string ever return an unexpected value?
+    if x != None and str(x).strip() != "":
         return True
     else:
         return False

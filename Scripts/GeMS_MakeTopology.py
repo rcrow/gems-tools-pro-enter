@@ -6,47 +6,27 @@ from GeMS_utilityFunctions import *
 # 6 June 2019: updated to work with Python 3 in ArcGIS Pro. Evan Thoms
 #   only ran script through 2to3. No other changes necessary.
 
-versionString = "GeMS_MakeTopology_AGP2.py, version of 6 June 2019"
-rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_MakeTopology_AGP2.py"
+versionString = "GeMS_MakeTopology.py, version of 8/21/23"
+rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_MakeTopology.py"
 checkVersion(versionString, rawurl, "gems-tools-pro")
 
 debug = False
 
 
 def buildCafMupTopology(inFds, um):
-    if debug:
-        addMsgAndPrint("inFds=" + inFds)
     if um.upper() == "TRUE":
         useMup = True
     else:
         useMup = False
     inCaf = getCaf(inFds)
-    if debug:
-        addMsgAndPrint("inCaf=" + inCaf)    
     caf = os.path.basename(inCaf)
-    if debug:
-        addMsgAndPrint("caf=" + caf)    
     nameToken = caf.replace("ContactsAndFaults", "")
     if debug:
-        addMsgAndPrint("nameToken=" + nameToken)    
-    #---8/4/2023 CHH, clears the nameToken of db.schema. text if run on EGDB dataset  
-    if '.sde' in inFds:
-        thisDB = inFds[0:inFds.find('.sde')+4]
-        desc = arcpy.Describe(thisDB)
-        cp = desc.connectionProperties
-        dbUser = cp.user
-        dbName = cp.database
-        dbNameUserPrefix = dbName + '.' + dbUser + '.'
-        if debug:
-            addMsgAndPrint("dbNameUserPrefix=" + dbNameUserPrefix)
-        nameToken = nameToken.upper().replace(dbNameUserPrefix.upper(),'')
-    #-----------------------------------------------------------------------
-    if debug:
-        addMsgAndPrint("nameToken=" + nameToken)
+        addMsgAndPrint("name token=" + nameToken)
     if nameToken == "":
         nameToken = "GeologicMap"
     inMup = inCaf.replace("ContactsAndFaults", "MapUnitPolys")
-    
+
     # First delete any existing topology
     ourTop = nameToken + "_topology"
     testAndDelete(inFds + "/" + ourTop)

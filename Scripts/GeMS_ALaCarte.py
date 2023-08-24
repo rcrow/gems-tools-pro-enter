@@ -262,7 +262,6 @@ def process(db, value_table):
                 fc_fields = [f.name for f in arcpy.ListFields(fc_path)]
                 field_defs = gdef.startDict[template]
                 
-                guf.showPyMessage(field_defs)
                 #adds multimap fields to field_defs if creating an EGDB or removes them if they are in field_defs and creating a file geodatabase
                 if db[-4:] == ".sde":
                     for field in gdef.multimap_fields:
@@ -272,7 +271,7 @@ def process(db, value_table):
                     for field in gdef.multimap_fields:
                         if field in field_defs:
                             field_defs.remove(field)                
-                guf.showPyMessage(field_defs)
+                #guf.showPyMessage(field_defs)
                 
                 for fDef in field_defs:
                     dom_spaces = ""

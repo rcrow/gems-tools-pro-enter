@@ -103,7 +103,7 @@ startDict = {
         ["Label", "String", "NullsOK", IDLength],
         ["LocationConfidenceMeters", "Single", "NoNulls"],
         ["PlotAtScale", "Single", "NoNulls"],
-        ["StationsID", "String", "NullsOK", IDLength],
+        ["StationsID", "String", "Optional", IDLength],
         ["MapUnit", "String", "NullsOK", mapUnitLength],
         ["LocationSourceID", "String", "NoNulls", IDLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
@@ -118,7 +118,7 @@ startDict = {
         ["MaterialAnalyzed", "String", "NullsOK", defaultLength],
         ["LocationConfidenceMeters", "Single", "NoNulls"],
         ["PlotAtScale", "Single", "NoNulls"],
-        ["StationsID", "String", "NullsOK", IDLength],
+        ["StationsID", "String", "Optional", IDLength],
         ["MapUnit", "String", "NoNulls", mapUnitLength],
         ["LocationSourceID", "String", "NoNulls", IDLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
@@ -134,7 +134,7 @@ startDict = {
         ["IdentityConfidence", "String", "NoNulls", 50],
         ["OrientationConfidenceDegrees", "Single", "NoNulls"],
         ["PlotAtScale", "Single", "NoNulls"],
-        ["StationsID", "String", "NullsOK", IDLength],
+        ["StationsID", "String", "Optional", IDLength],
         ["MapUnit", "String", "NoNulls", mapUnitLength],
         ["LocationSourceID", "String", "NoNulls", IDLength],
         ["OrientationSourceID", "String", "NoNulls", IDLength],
@@ -155,7 +155,7 @@ startDict = {
         ["AgeMinusError", "Single", "NullsOK"],
         ["ErrorMeasure", "String", "NullsOK", defaultLength],
         ["AgeUnits", "String", "NoNulls", IDLength],
-        ["StationsID", "String", "NullsOK", IDLength],
+        ["StationsID", "String", "Optional", IDLength],
         ["LocationSourceID", "String", "NoNulls", IDLength],
         ["AnalysisSourceID", "String", "NullsOK", IDLength],
         ["Notes", "String", "Optional", defaultLength],
@@ -322,19 +322,6 @@ startDict = {
         ["ViewWidth", "String", "NullsOK", defaultLength],
         ["Notes", "String", "NullsOK", defaultLength],
     ],
-    "GeologicPoints": [
-        ["Type", "String", "NoNulls", defaultLength],
-        ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", IDLength],
-        ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["LocationConfidenceMeters", "Single", "NoNulls"],
-        ["PlotAtScale", "Single", "NoNulls"],
-        ["StationsID", "String", "NullsOK", IDLength],
-        ["MapUnit", "String", "NullsOK", mapUnitLength],
-        ["LocationSourceID", "String", "NoNulls", IDLength],
-        ["DataSourceID", "String", "NoNulls", IDLength],
-        ["Notes", "String", "Optional", defaultLength],    
-    ],
 }
 
 shape_dict = {
@@ -399,24 +386,6 @@ DefaultExIDConfidenceValues = [
     ],
 ]
 
-# #---7/25/2023 CHH, map type and scale domain lists-------
-# MapTypeValues = [
-    # "Bedrock", 
-    # "Surficial"
-# ]
-# MapScaleValues = [
-    # "24000",
-    # "100000",
-    # "250000",
-    # "500000"
-# ]
-MapNameValues = [
-    "augusta",
-    "beaver-pond-se",
-    "camden",
-    "west-rockport"
-]
-#---------------------------------------------
 
 enumeratedValueDomainFieldList = [
     "Type",
@@ -579,7 +548,6 @@ standard_fields = (
     "created_user",
 )
 
-
 # fields whose values must be defined in Glossary
 defined_term_fields_list = (
     "Type",
@@ -611,13 +579,13 @@ rule2_1_elements = [
     "MapUnitPolys",
 ]
 
-#---7/25/2023 CHH, fields needed in each entity for multimap enterprise geodatabase
-multimap_fields = [
-    ["MapName", "String", "NoNulls", 100],
-    # ["MapType", "String", "NoNulls", 30],
-    # ["MapScale", "String", "NoNulls", 12]
+req_source_ids = [
+    "DataSourceID",
+    "DefinitionSourceID",
+    "LocationSourceID",
+    "OrientationSourceID",
 ]
-#----------------------------------------------------------------------------------
+
 
 required_geologic_map_feature_classes = ["ContactsAndFaults", "MapUnitPolys"]
 

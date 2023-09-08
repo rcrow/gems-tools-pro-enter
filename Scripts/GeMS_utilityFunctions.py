@@ -344,7 +344,7 @@ def gdb_object_dict(gdb_path):
         v["gems_equivalent"] = ""
         tableDict_keys = list(gdef.tableDict.keys())
         tableDict_keys.append("GeoMaterialDict")
-        if not v["dataType"] in ("Topology", "Annotation"):
+        if not any(el in v["concat_type"] for el in ("Topology", "Annotation")):
             for a in tableDict_keys:
                 # if the CamelCase or snake_case version of a gems object
                 # is found in the table name
@@ -369,6 +369,9 @@ def gdb_object_dict(gdb_path):
 
             if any(k.lower().endswith(l) for l in ("label", "labels")):
                 v["gems_equivalent"] = ""
+
+            if "mapunitoverlaypolys" in k.lower():
+                v["gems_equivalent"] = "MapUnitOverlayPolys"
 
     return new_dict
 

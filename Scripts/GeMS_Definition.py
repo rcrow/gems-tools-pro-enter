@@ -38,7 +38,7 @@ versionString = "GeMS_Definition.py, version of 8/21/2023"
 defaultLength = 254
 mapUnitLength = 10
 IDLength = 50
-labelLength = 100
+labelLength = 150
 memoLength = 3000
 booleanLength = 1
 

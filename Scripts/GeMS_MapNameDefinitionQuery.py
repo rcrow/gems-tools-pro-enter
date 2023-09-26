@@ -37,63 +37,64 @@ def SetDefQuery(mapname,clear,draw):
                 if prop[0:8] == 'Dataset=':
                     fcName = prop.replace('Dataset=','')
             if debug: showPyMessage(fcName)
-            if fcName.lower().find('gems') > -1 and mapfldname in [f.name for f in arcpy.ListFields(lyr.longName,'*','String')] and '_topology' not in fcName:
-                showPyMessage('Querying ' + fcName)
-                #--clears any mapname from dq----------
-                if lyr.supports('DEFINITIONQUERY'):                           
-                    dq = lyr.definitionQuery
-                else:
-                    dq = ''
-                if debug: showPyMessage('dq0: ' + str(dq))
-                dq = dq.replace('AND','And')
-                if debug: showPyMessage('dq1: ' + str(dq))
-                
-                srchstr = dq[dq.find(mapfldname + " = '"):dq.find("'",dq.find(mapfldname + " = '")+(len(mapfldname + " = '")))+1]
-                if srchstr != "'" and len(srchstr)>0:
-                    dq = dq.replace(" And " + srchstr, "")
-                    dq = dq.replace(srchstr + " And ", "")
-                    dq = dq.replace(srchstr, "")
-                if debug: showPyMessage('dq2: ' + str(dq))
-                
-                #sets new definition query
-                if clear == "true":
-                    dq = dq.replace(" And " + mapfldname + " = '" + mapname + "'", "")
-                    dq = dq.replace(mapfldname + " = '" + mapname + "'" + " And ", "")
-                    dq = dq.replace(mapfldname + " = '" + mapname + "'", "")
-                elif clear == "false":
-                    if len((dq).strip())==0:
-                        dq = mapfldname + " = '" + mapname + "'"
+            if fcName.find('_topology') == -1:
+                if fcName.lower().find('gems') > -1 and mapfldname in [f.name for f in arcpy.ListFields(lyr.longName,'*','String')]: 
+                    showPyMessage('Setting Defintion Query on ' + fcName)
+                    #--clears any mapname from dq----------
+                    if lyr.supports('DEFINITIONQUERY'):                           
+                        dq = lyr.definitionQuery
                     else:
-                        if mapfldname + " = '" + mapname + "'" not in dq:
-                            dq = dq + " And " + mapfldname + " = '" + mapname + "'"
-                if debug: showPyMessage('dq3: ' + str(dq))
-                
-                if (mapfldname and drawfldname) in [f.name for f in arcpy.ListFields(lyr.longName,'*','String')]:
-                    if draw == "true":
-                        if drawfldname + " = 'Yes'" not in dq:
-                            if len((dq).strip())==0:
-                                dq = dq + drawfldname + " = 'Yes'"
-                            else:
-                                dq = dq + " And " + drawfldname + " = 'Yes'"
-                    elif draw == "false":
-                        dq = dq.replace(" And " + drawfldname + " = 'Yes'", "")
-                        dq = dq.replace(drawfldname + " = 'Yes' And ", "")
-                        dq = dq.replace(drawfldname + " = 'Yes'", "")
-                if debug: showPyMessage('dq4: ' + str(dq))
-                
-                if debug: showPyMessage('dq: ' + str(dq))
-                
-                lyr_cim = lyr.getDefinition('V2')
-                cim_ft = lyr_cim.featureTable
-                for dfc in cim_ft.definitionFilterChoices:
-                    if dfc.name == 'MapNameDefQueryPython':
-                        dfc.definitionExpression = dq
-                    else:
-                        cim_ft.definitionFilterChoices.remove(dfc)
+                        dq = ''
+                    if debug: showPyMessage('dq0: ' + str(dq))
+                    dq = dq.replace('AND','And')
+                    if debug: showPyMessage('dq1: ' + str(dq))
                     
-                cim_ft.definitionExpression = dq
-                cim_ft.definitionExpressionName = "MapNameDefQueryPython"
-                lyr.setDefinition(lyr_cim)
+                    srchstr = dq[dq.find(mapfldname + " = '"):dq.find("'",dq.find(mapfldname + " = '")+(len(mapfldname + " = '")))+1]
+                    if srchstr != "'" and len(srchstr)>0:
+                        dq = dq.replace(" And " + srchstr, "")
+                        dq = dq.replace(srchstr + " And ", "")
+                        dq = dq.replace(srchstr, "")
+                    if debug: showPyMessage('dq2: ' + str(dq))
+                    
+                    #sets new definition query
+                    if clear == "true":
+                        dq = dq.replace(" And " + mapfldname + " = '" + mapname + "'", "")
+                        dq = dq.replace(mapfldname + " = '" + mapname + "'" + " And ", "")
+                        dq = dq.replace(mapfldname + " = '" + mapname + "'", "")
+                    elif clear == "false":
+                        if len((dq).strip())==0:
+                            dq = mapfldname + " = '" + mapname + "'"
+                        else:
+                            if mapfldname + " = '" + mapname + "'" not in dq:
+                                dq = dq + " And " + mapfldname + " = '" + mapname + "'"
+                    if debug: showPyMessage('dq3: ' + str(dq))
+                    
+                    if (mapfldname and drawfldname) in [f.name for f in arcpy.ListFields(lyr.longName,'*','String')]:
+                        if draw == "true":
+                            if drawfldname + " = 'Yes'" not in dq:
+                                if len((dq).strip())==0:
+                                    dq = dq + drawfldname + " = 'Yes'"
+                                else:
+                                    dq = dq + " And " + drawfldname + " = 'Yes'"
+                        elif draw == "false":
+                            dq = dq.replace(" And " + drawfldname + " = 'Yes'", "")
+                            dq = dq.replace(drawfldname + " = 'Yes' And ", "")
+                            dq = dq.replace(drawfldname + " = 'Yes'", "")
+                    if debug: showPyMessage('dq4: ' + str(dq))
+                    
+                    if debug: showPyMessage('dq: ' + str(dq))
+                    
+                    lyr_cim = lyr.getDefinition('V2')
+                    cim_ft = lyr_cim.featureTable
+                    for dfc in cim_ft.definitionFilterChoices:
+                        if dfc.name == 'MapNameDefQueryPython':
+                            dfc.definitionExpression = dq
+                        else:
+                            cim_ft.definitionFilterChoices.remove(dfc)
+                        
+                    cim_ft.definitionExpression = dq
+                    cim_ft.definitionExpressionName = "MapNameDefQueryPython"
+                    lyr.setDefinition(lyr_cim)
 
         
 if __name__ == '__main__':

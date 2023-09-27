@@ -36,10 +36,10 @@ versionString = "GeMS_Definition.py, version of 8/21/2023"
 # to think about: Maybe change all NoNulls to NullsOK?
 
 defaultLength = 254
-mapUnitLength = 10
+mapUnitLength = 25 #10
 IDLength = 50
 labelLength = 150
-memoLength = 3000
+memoLength = 6000 #3000
 booleanLength = 1
 
 # attributes are in order Name DataType NullStatus suggestedLength

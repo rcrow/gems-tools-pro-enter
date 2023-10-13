@@ -1,4 +1,4 @@
-﻿"""Add GeMS objects a la carte to a geodatabased
+﻿"""Add GeMS objects a la carte to a geodatabase
 
     Create or augment a GeMS or GeMS-like file geodatabase by adding one or more
     objects as needed
@@ -36,44 +36,38 @@ import GeMS_utilityFunctions as guf
 from pathlib import Path
 import sys
 
-versionString = "GeMS_ALaCarte.py, version of 27 June 2023"
+versionString = "GeMS_ALaCarte.py, version of 10/5/23"
 rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_ALaCarte.py"
 guf.checkVersion(versionString, rawurl, "gems-tools-pro")
-
-dbNameUserPrefix = ''
-
-debug = False
 
 geom_dict = {
     "CMULines": "Polyline",
     "CMUMapUnitPolys": "Polygon",
     "CMUPoints": "Point",
     "CartographicLines": "Polyline",
-    "CartographicPoints": "Point",
     "ContactsAndFaults": "Polyline",
     "DataSourcePolys": "Polygon",
-    "DataSources": "Table",
-    "DescriptionOfMapUnits": "Table",
+    "DataSources": "table",
+    "DescriptionOfMapUnits": "table",
     "FossilPoints": "Point",
     "GenericPoints": "Point",
-    "GenericSamples": "Point",
-    "GeoMaterialDict": "Table",
-    "GeochronPoints": "Point",
+    "GenericSamples": "point",
+    "GeoMaterialDict": "table",
+    "GeochronPoints": "point",
     "GeologicLines": "Polyline",
-    "GeologicPoints": "Point",
-    "Glossary": "Table",
+    "Glossary": "table",
     "IsoValueLines": "Polyline",
-    "LayerList": "Table",
+    "LayerList": "table",
     "MapUnitLines": "Polyline",
     "MapUnitOverlayPolys": "Polygon",
     "MapUnitPoints": "Point",
     "MapUnitPolys": "Polygon",
-    "MiscellaneousMapInformation": "Table",
+    "MiscellaneousMapInformation": "table",
     "OrientationPoints": "Point",
     "OverlayPolys": "Polygon",
     "PhotoPoints": "Point",
-    "RepurposedSymbols": "Table",
-    "StandardLithology": "Table",
+    "RepurposedSymbols": "table",
+    "StandardLithology": "table",
     "Stations": "Point",
 }
 
@@ -124,15 +118,17 @@ def find_temp(fc):
 
 def conf_domain(gdb):
     l_domains = [d.name for d in arcpy.da.ListDomains(gdb)]
-    if debug:
-        arcpy.AddMessage("l_domains=" + str(l_domains))
-    if not dbNameUserPrefix + "ExIDConfidenceValues" in l_domains:
+    if not "ExIDConfidenceValues" in l_domains:
         conf_vals = gdef.DefaultExIDConfidenceValues
         arcpy.AddMessage("adding domain ExIDConfidenceValues")
-        arcpy.CreateDomain_management(gdb, dbNameUserPrefix + "ExIDConfidenceValues", "", "TEXT", "CODED")
+        arcpy.CreateDomain_management(
+            gdb, "ExIDConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
+        )
         for val in conf_vals:
             arcpy.AddMessage(f"adding value {val[0]}")
-            arcpy.AddCodedValueToDomain_management(gdb, dbNameUserPrefix + "ExIDConfidenceValues", val[0], val[0])
+            arcpy.AddCodedValueToDomain_management(
+                gdb, "ExIDConfidenceValues", val[0], val[0]
+            )
 
 
 def required(value_table):
@@ -145,6 +141,7 @@ def required(value_table):
                 found = True
         if not found:
             value_table.addRow(["", "", f"{t}"])
+
     return value_table
 
 
@@ -178,24 +175,24 @@ def add_geomaterial(db, out_path, padding):
             conf_vals = gdef.GeoMaterialConfidenceValues
             arcpy.AddMessage(f"{padding}adding domain GeoMaterialConfidenceValues")
             arcpy.CreateDomain_management(
-                db, "GeoMaterialConfidenceValues", "", "TEXT", "CODED"
+                db, "GeoMaterialConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
             )
             for val in conf_vals:
                 arcpy.AddMessage(f"{padding}  adding value {val}")
-                arcpy.AddCodedValueToDomain_management(db, dbNameUserPrefix + "GeoMaterialConfidenceValues", val, val)
+                arcpy.AddCodedValueToDomain_management(
+                    db, "GeoMaterialConfidenceValues", val, val
+                )
 
 
 def process(db, value_table):
     global is_gdb
     is_gdb = False
-    if db.endswith(".gdb") or db.endswith(".sde"):
+    if db.endswith(".gdb"):
         is_gdb = True
 
     # check for DataSources and Glossary
     value_table = required(value_table)
-    if debug:
-        arcpy.AddMessage("value_table=" + str(value_table))
-        
+
     # if gdb/geopackage doesn't exist, make it
     if not Path(db).exists:
         folder = Path(db).parent
@@ -255,37 +252,40 @@ def process(db, value_table):
                                 spatial_reference=sr,
                             )
                     else:
-                        arcpy.AddWarning(f"GeMS template for {fc_name} could not be found")
+                        arcpy.AddWarning(
+                            f"GeMS template for {fc_name} could not be found"
+                        )
             fc_tab = "  "
 
             # add fields as defined in GeMS_Definition
             if template:
                 fc_fields = [f.name for f in arcpy.ListFields(fc_path)]
                 field_defs = gdef.startDict[template]
-                
-                #adds multimap fields to field_defs if creating an EGDB or removes them if they are in field_defs and creating a file geodatabase
-                if db[-4:] == ".sde":
-                    for field in gdef.multimap_fields:
-                        if field not in field_defs:
-                            field_defs.append(field)
-                elif db[-4:] == ".gdb":
-                    for field in gdef.multimap_fields:
-                        if field in field_defs:
-                            field_defs.remove(field)                
-                #guf.showPyMessage(field_defs)
-                
                 for fDef in field_defs:
                     dom_spaces = ""
                     if not fDef[0] in fc_fields:
                         try:
                             arcpy.AddMessage(f"{fd_tab}{fc_tab}Adding field {fDef[0]}")
                             if fDef[1] == "String":
-                                arcpy.AddField_management(str(fc_path),fDef[0],transDict[fDef[1]],field_length=fDef[3],field_is_nullable="NULLABLE")
+                                arcpy.AddField_management(
+                                    str(fc_path),
+                                    fDef[0],
+                                    transDict[fDef[1]],
+                                    field_length=fDef[3],
+                                    field_is_nullable="NULLABLE",
+                                )
                             else:
-                                arcpy.AddField_management(str(fc_path),fDef[0],transDict[fDef[1]],field_is_nullable="NULLABLE")
+                                arcpy.AddField_management(
+                                    str(fc_path),
+                                    fDef[0],
+                                    transDict[fDef[1]],
+                                    field_is_nullable="NULLABLE",
+                                )
                             fld_tab = " "
                         except:
-                            arcpy.AddWarning(f"Failed to add field {fDef[0]} to feature class {fc}")
+                            arcpy.AddWarning(
+                                f"Failed to add field {fDef[0]} to feature class {fc}"
+                            )
                     else:
                         fld_tab = ""
 
@@ -298,31 +298,32 @@ def process(db, value_table):
                         ):
                             try:
                                 this_field = arcpy.ListFields(fc_path, fDef[0])[0]
-                                if not this_field.domain == dbNameUserPrefix + "ExIDConfidenceValues":
-                                    arcpy.AssignDomainToField_management(str(fc_path), fDef[0], dbNameUserPrefix + "ExIDConfidenceValues")
-                                    arcpy.AddMessage(f"{fd_tab}{fc_tab}{fld_tab}Domain ExIDConfidenceValues assigned to field {fDef[0]}")
+                                if not this_field.domain == "ExIDConfidenceValues":
+                                    arcpy.AssignDomainToField_management(
+                                        str(fc_path), fDef[0], "ExIDConfidenceValues"
+                                    )
+                                    arcpy.AddMessage(
+                                        f"{fd_tab}{fc_tab}{fld_tab}Domain ExIDConfidenceValues assigned to field {fDef[0]}"
+                                    )
                             except:
-                                arcpy.AddWarning(f"Failed to assign domain ExIDConfidenceValues to field {fDef[0]}")
-                        
-                        #add domain for multimap_fields
-                        for flds in gdef.multimap_fields:
-                            if fDef[0] == flds[0]:
-                                try:
-                                    this_field = arcpy.ListFields(fc_path, fDef[0])[0]
-                                    if not this_field.domain == dbNameUserPrefix + flds[0] + "Values":
-                                        arcpy.AssignDomainToField_management(str(fc_path), fDef[0], dbNameUserPrefix + flds[0] + "Values")
-                                        arcpy.AddMessage(f"{fd_tab}{fc_tab}{fld_tab}Domain {dbNameUserPrefix + flds[0]}Values assigned to field {fDef[0]}")
-                                except:
-                                    arcpy.AddWarning(f"Failed to assign domain {dbNameUserPrefix + flds[0]}Values to field {fDef[0]}")                                
-                                    
+                                arcpy.AddWarning(
+                                    f"Failed to assign domain ExIDConfidenceValues to field {fDef[0]}"
+                                )
+
                         if fDef[0] == "GeoMaterial":
                             # try:
                             this_field = arcpy.ListFields(fc_path, "GeoMaterial")[0]
-                            if not this_field.domain == dbNameUserPrefix + "GeoMaterials":
+                            if not this_field.domain == "GeoMaterials":
                                 # double-check GeoMaterialDict and related domains
-                                add_geomaterial(db, out_path, f"{fd_tab}{fc_tab}{fld_tab}")
-                                arcpy.AssignDomainToField_management(str(fc_path), fDef[0], dbNameUserPrefix + "GeoMaterials")
-                                arcpy.AddMessage(f"{fd_tab}{fc_tab}{fld_tab}GeoMaterials domain assigned to field GeoMaterial")
+                                add_geomaterial(
+                                    db, out_path, f"{fd_tab}{fc_tab}{fld_tab}"
+                                )
+                                arcpy.AssignDomainToField_management(
+                                    str(fc_path), fDef[0], "GeoMaterials"
+                                )
+                                arcpy.AddMessage(
+                                    f"{fd_tab}{fc_tab}{fld_tab}GeoMaterials domain assigned to field GeoMaterial"
+                                )
                             # except:
                             #     arcpy.AddWarning(
                             #         f"Failed to assign domain GeoMaterials to field GeoMaterial"
@@ -334,13 +335,27 @@ def process(db, value_table):
                                 this_field = arcpy.ListFields(
                                     fc_path, "GeoMaterialConfidence"
                                 )[0]
-                                if (not this_field.domain == dbNameUserPrefix + "GeoMaterialConfidenceValues"):
+                                if (
+                                    not this_field.domain
+                                    == "GeoMaterialConfidenceValues"
+                                ):
                                     # double-check GeoMaterialDict and related domains
-                                    add_geomaterial(db, out_path, f"{fd_tab}{fc_tab}{fld_tab}")
-                                    arcpy.AssignDomainToField_management(str(fc_path), fDef[0], dbNameUserPrefix + "GeoMaterialConfidenceValues")
-                                    arcpy.AddMessage(f"{fd_tab}{fc_tab}{fld_tab}GeoMaterialConfidenceValues domain assigned to field GeoMaterialConfidenceValue")
+                                    add_geomaterial(
+                                        db, out_path, f"{fd_tab}{fc_tab}{fld_tab}"
+                                    )
+                                    arcpy.AssignDomainToField_management(
+                                        str(fc_path),
+                                        fDef[0],
+                                        "GeoMaterialConfidenceValues",
+                                    )
+                                    arcpy.AddMessage(
+                                        f"{fd_tab}{fc_tab}{fld_tab}GeoMaterialConfidenceValues domain assigned to field GeoMaterialConfidenceValue"
+                                    )
                             except:
-                                arcpy.AddWarning(f"Failed to assign domain GeoMaterialConfidenceValues to field GeoMaterialConfidenceValue")
+                                arcpy.AddWarning(
+                                    f"Failed to assign domain GeoMaterialConfidenceValues to field GeoMaterialConfidenceValue"
+                                )
+
                 try:
                     if not f"{fc_name}_ID" in fc_fields:
                         # add a _ID field
@@ -356,10 +371,4 @@ if __name__ == "__main__":
     db = sys.argv[1]
     # gdb_items = sys.argv[2]
     value_table = arcpy.GetParameter(1)
-    if db[-4:]=='.sde':
-        desc = arcpy.Describe(db)
-        cp = desc.connectionProperties
-        dbUser = cp.user
-        dbName = cp.database
-        dbNameUserPrefix = dbName + '.' + dbUser + '.'    
     process(db, value_table)

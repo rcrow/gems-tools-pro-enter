@@ -82,21 +82,24 @@ import GeMS_Definition as gdef
 import topology as tp
 import requests
 from jinja2 import Environment, FileSystemLoader
+from osgeo import ogr
 
+# for debugging
 from importlib import reload
 
-reload(tp)
+# reload(guf)
+# reload(tp)
+reload(gdef)
 
 # values dictionary gets sent to report_template.jinja errors_template.jinja
 val = {}
 
-version_string = "GeMS_ValidateDatabase.py, version of 8/30/2023"
+version_string = "GeMS_ValidateDatabase.py, version of 9/28/2023"
 val["version_string"] = version_string
 val["datetime"] = time.asctime(time.localtime(time.time()))
 
 rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_ValidateDatabase.py"
 
-py_path = __file__
 scripts_dir = Path.cwd()
 toolbox_dir = scripts_dir.parent
 resources_path = toolbox_dir / "Resources"
@@ -212,6 +215,8 @@ def rule2_1(db_dict, is_gpkg):
         k
         for k, v in db_dict.items()
         if v["gems_equivalent"] in gdef.required_geologic_map_feature_classes
+        and not "crosssection" in v["feature_dataset"].lower()
+        and not "cmu" in v["feature_dataset"].lower()
     ]
     # find_topology_pairs returns [GeologicMap feature dataset(if gdb), fd_tag_name, mapunitpolys, contactsandfaults]
     possible_pairs = tp.find_topology_pairs(fcs, is_gpkg, db_dict)
@@ -501,7 +506,7 @@ def check_map_units(db_dict, level, all_map_units, fds_map_units):
                                     html = f"""
                                         <span class="table">{mu_table}</span>,
                                         <span class="field">{mu_fields[i]}</span>,
-                                        <span class="value">{val}</span>, 
+                                        <span class="value">{val}</span> 
                                         """
                                     missing.append(html)
                                 all_map_units.append(val)
@@ -890,7 +895,11 @@ def rule3_10(db_dict):
     for k, v in hk_dict.items():
         if guf.empty(v):
             hkey_errors.append(
-                f'{id_fld} {k} has no <span class="field">HierarchyKey</span> value'
+                f"""
+                <span class="field">{id_fld}</span> 
+                <span class="value">{k}</span> 
+                has no <span class="field">HierarchyKey</span> value
+                """
             )
 
     # find the delimiter
@@ -930,7 +939,11 @@ def rule3_10(db_dict):
             # check for duplicated key
             if new_key in dupe_pipes:
                 hkey_errors.append(
-                    f"{id_fld} {k} has duplicated key: {old_key} (ignore delimiter)"
+                    f"""
+                    <span class="field">{id_fld}</span> 
+                    <span class="value">{k}</span> has duplicated key: 
+                    <span class="value">{old_key}</span> (ignore delimiter)
+                    """
                 )
 
             # collect fragment length
@@ -942,8 +955,12 @@ def rule3_10(db_dict):
                 for c in frag if c != "|" else c:
                     if c.isnumeric() == False:
                         hkey_warnings.append(
-                            f"""{id_fld} {k}: <span class="value">{old_key}</span> 
-                            includes non-numeric character span class="value">{c}</span>. Please check!"""
+                            f"""
+                            <span class="field">{id_fld}</span> 
+                            <span class="value>{k}</span>: 
+                            <span class="value">{old_key}</span> 
+                            includes non-numeric character span class="value">{c}</span>. Please check!
+                            """
                         )
     else:
         # dealing with a list of integers or single fragment values, that is,
@@ -965,8 +982,13 @@ def rule3_10(db_dict):
             for c in hkey:
                 if c.isnumeric == False:
                     hkey_warnings.append(
-                        f"""<span class="tab"></span>{id_fld} {oid}: <span class="value">{hkey}</span> 
-                        includes non-numeric character <span class="value">{c}</span>. Please check!"""
+                        f"""
+                        <span class="tab"></span>
+                        <span class="field">{id_fld}</span> 
+                        <span class="value">{oid}</span>: 
+                        <span class="value">{hkey}</span> 
+                        includes non-numeric character <span class="value">{c}</span>. Please check!
+                        """
                     )
 
             # collect hkey length
@@ -1034,8 +1056,10 @@ def rule3_11(db_dict, ref_gmd):
                     errors.append(html)
 
             else:
-                html = f"""<span class="value">{k}</span> in <span class="table">GeoMaterialDict</span> is not a valid GeoMaterial. 
-                Check "Refresh GeoMaterial Dict" on next validation and update any tables using this geomaterial."""
+                html = f"""
+                <span class="value">{k}</span> in <span class="table">GeoMaterialDict</span> is not a valid GeoMaterial. 
+                Check "Refresh GeoMaterial Dict" on next validation and update any tables using this geomaterial.
+                """
                 errors.append(html)
 
     # compare geomaterials in the tables to ref_gmd
@@ -1078,47 +1102,68 @@ def rule3_11(db_dict, ref_gmd):
     return errors
 
 
-def rule3_12(db_dict):
+def rule3_12(db_dict, gdb_path):
     """No duplicate _ID values"""
     duplicate_ids = [
         "duplicated _ID value(s)",
-        "3.12 Duplicated _ID Values",
+        "3.12 Duplicated _ID Values. Missing value indicates an empty string, i.e., one or more space or tabs",
         "duplicate_ids",
     ]
-    id_tables = []
-    db_tables = [
-        k
-        for k, v in db_dict.items()
-        if any(v["concat_type"].endswith(n) for n in ("Table", "Feature Class"))
-        and not k == "GeoMaterialDict"
-        and not "Annotation" in v["concat_type"]
-    ]
-    for table in db_tables:
-        for f in [f.name for f in db_dict[table]["fields"]]:
-            if f == f"{table}_ID":
-                id_tables.append(table)
+    ds = ogr.Open(gdb_path)
+    all_ids = [None]
+    set_ids = []
+    for k in db_dict:
+        idf = f"{k}_ID"
+        sql = f"SELECT {idf} from {k}"
+        res = ds.ExecuteSQL(sql)
+        if res:
+            for row in res:
+                i = row.GetField(0)
+                if not i in all_ids:
+                    all_ids.append(i)
+                else:
+                    to_html = f"""
+                        <span class="table">{k}</span>, 
+                        <span class="field">{idf}</span>, 
+                        <span class="value">{i}</span>
+                        """
+                    set_ids.append(to_html)
+    if set_ids:
+        duplicate_ids.extend((list(set(set_ids))))
 
-    all_ids = []
-    for table in id_tables:
-        table_path = db_dict[table]["catalogPath"]
-        # need a tuple here because duplicated keys added to a dictionary
-        # are ignored. need to look for duplicate (_ID Value: table) pairs.
-        # that is, we won't use the values() method here like in other functions
-        table_ids = [
-            (r[0], table)
-            for r in arcpy.da.SearchCursor(table_path, f"{table}_ID")
-            if r[0]
-        ]
-        all_ids.extend(table_ids)
-        dup_ids = list(set([id for id in all_ids if all_ids.count(id) > 1]))
+    # db_tables = [
+    #     k
+    #     for k, v in db_dict.items()
+    #     if any(v["concat_type"].endswith(n) for n in ("Table", "Feature Class"))
+    #     and not k == "GeoMaterialDict"
+    #     and not "Annotation" in v["concat_type"]
+    # ]
+    # for table in db_tables:
+    #     for f in [f.name for f in db_dict[table]["fields"]]:
+    #         if f == f"{table}_ID":
+    #             id_tables.append(table)
 
-    if dup_ids:
-        to_html = [
-            f'<span class="value">{d[0]}</span> in table <span class="table">{d[1]}</span>'
-            for d in dup_ids
-            if not guf.is_bad_null(d[0])
-        ]
-        duplicate_ids.extend(to_html)
+    # all_ids = []
+    # for table in id_tables:
+    #     table_path = db_dict[table]["catalogPath"]
+    #     # need a tuple here because duplicated keys added to a dictionary
+    #     # are ignored. need to look for duplicate (_ID Value: table) pairs.
+    #     # that is, we won't use the values() method here like in other functions
+    #     table_ids = [
+    #         (r[0], table)
+    #         for r in arcpy.da.SearchCursor(table_path, f"{table}_ID")
+    #         if r[0]
+    #     ]
+    #     all_ids.extend(table_ids)
+    #     dup_ids = list(set([id for id in all_ids if all_ids.count(id) > 1]))
+
+    # if dup_ids:
+    #     to_html = [
+    #         f'<span class="value">{d[0]}</span> in table <span class="table">{d[1]}</span>'
+    #         for d in dup_ids
+    #         if not guf.is_bad_null(d[0])
+    #     ]
+    #     duplicate_ids.extend(to_html)
 
     return duplicate_ids
 
@@ -1151,7 +1196,8 @@ def rule3_13(db_dict):
                         html = f"""
                             <span class="table">{table}</span>, 
                             <span class="field"> {field}</span>, 
-                            {id_fld} {str(k)}
+                            <span class="field">{id_fld}</span> 
+                            <span class="value">{str(k)}</span>
                             """
                         zero_length_strings.append(html)
 
@@ -1162,7 +1208,8 @@ def rule3_13(db_dict):
                 html = f"""
                     <span class="table">{table}</span>, 
                     <span class="field"> {field}</span>, 
-                    {id_fld} {str(n)}
+                    <span class="field">{id_fld}</span> 
+                    <span class="value">{str(n)}</span>
                     """
                 leading_trailing_spaces.append(html)
 
@@ -1196,8 +1243,10 @@ def validate_online(metadata_file, workdir):
 
         summary = r.json()["summary"]
         if "No errors" in summary:
-            message = f"""The database-level FGDC metadata are <a href="{metadata_errors.name}">formally correct</a> 
-                although the metadata record should be reviewed to verify that it is meaningful.<br>"""
+            message = f"""
+                The database-level FGDC metadata are <a href="{metadata_errors.name}">formally correct</a> 
+                although the metadata record should be reviewed to verify that it is meaningful.<br>
+                """
             ap("The metadata for this record are formally correct.")
         else:
             message = f'The metadata record for this database has <a href="{str(metadata_errors.name)}">formal errors</a>. Please fix!<br>'
@@ -1419,7 +1468,7 @@ def main(argv):
 
     # we already know argv[1] exists, no check
     gdb_path = Path(argv[1])
-    val["parameters"].append(f"Database path: {gdb_path}")
+    val["parameters"].append(f"Database path: {str(gdb_path)}")
     gdb_name = gdb_path.name
     # val["db_path"] = gdb_path
     val["db_name"] = gdb_name
@@ -1448,12 +1497,15 @@ def main(argv):
     val["parameters"].append(f"Output directory: {workdir}")
 
     # path to metadata file
-    # metadata_file = None
-    # if 3 < args_len:
-    #     if Path(argv[3]).suffix == ".xml" and Path(argv[3]).exists():
-    #         metadata_file = Path(argv[3])
-    #     else:
-    #         ap("Metadata not checked. File needs to be in XML format or could not be found.")
+    metadata_file = None
+    if 3 < args_len:
+        if not argv[3] in ("#", ""):
+            if Path(argv[3]).suffix == ".xml" and Path(argv[3]).exists():
+                metadata_file = Path(argv[3])
+            else:
+                ap(
+                    "Metadata not checked. File needs to be in XML format or could not be found."
+                )
 
     arc_md = False
     if 4 < args_len:
@@ -1732,7 +1784,7 @@ def main(argv):
     # rule 3.2
     ap(
         """3.2 All MapUnitPolys and ContactsAndFaults based feature classes obey Level 3 topology rules: 
-        no ContactsAndFaults overlaps, self-overlaps, or self-intersections."""
+        no overlaps, self-overlaps, or self-intersections in ContactsAndFaults."""
     )
     val["rule3_2"] = level_3_errors
 
@@ -1836,7 +1888,7 @@ def main(argv):
     # 3.12
     # No duplicate _ID values
     ap("3.12 No duplicate _ID values")
-    val["rule3_12"] = rule3_12(db_dict)
+    val["rule3_12"] = rule3_12(db_dict, str(gdb_path))
 
     # 3.13
     # No zero-length or whitespace-only strings

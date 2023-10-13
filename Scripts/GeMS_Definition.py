@@ -321,6 +321,7 @@ startDict = {
         ["PhotoSubject", "String", "NullsOK", defaultLength],
         ["ViewDirection", "String", "NullsOK", defaultLength],
         ["ViewWidth", "String", "NullsOK", defaultLength],
+        ["FileName", "String", "NullsOK", defaultLength],
         ["Notes", "String", "NullsOK", defaultLength],
     ],
     "GeologicPoints": [
@@ -554,6 +555,7 @@ entityDict = {
     "Stations": "Point locations of field observations and (or) samples.",
     "GeologicPoints": "Small areas of distinct rock type or small (at scale) geologic features.",
     "CartographicPoints": "Points (e.g., labels) that have no real-world physical existence, such that LocationConfidenceMeters, ExistenceConfidence, and IdentityConfidence attributes are meaningless, and that are never shown as concealed beneath a covering unit.",
+    "PhotoPoints": "Locations of photographs taken of geologic features.",
 }
 
 # fields we don't want listed or described when inventorying dataset:

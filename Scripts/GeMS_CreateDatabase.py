@@ -22,12 +22,17 @@
 # Edits 10/8/20 to update to Ralph's latest changes (above), Evan Thoms
 # 23 December 2020: Changed how MapUnitPoints feature class is created, so that it follows definition in GeMS_Definitions.py - RH
 
+# 4/28/2023: Christian Halsted: updated to allow tool to create GeMS schema in an ESRI enterprise geodatabase                                                                                                                
 import arcpy, sys, os, os.path
 from GeMS_Definition import (
     tableDict,
     GeoMaterialConfidenceValues,
     DefaultExIDConfidenceValues,
     IDLength,
+    multimap_fields,
+    MapNameValues,
+    # MapTypeValues,
+    # MapScaleValues,                            
 )
 from GeMS_utilityFunctions import *
 import copy
@@ -39,7 +44,9 @@ checkVersion(versionString, rawurl, "gems-tools-pro")
 debug = True
 
 default = "#"
-
+dbUser = ''
+dbName = ''
+dbNameUserPrefix = ''                        
 # cartoReps = False # False if cartographic representations will not be used
 
 transDict = {
@@ -194,14 +201,30 @@ def rename_field(defs, start_name, end_name):
     ]  # finds ['MapUnitPolys_ID', 'String', 'NoNulls', 50], for instance
     i = f_list.index(list_item[0])  # finds the index of that item
     f_list[i][0] = end_name  # changes the name in the list
-    arcpy.AddMessage(f_list[i][0] + " becoming " + end_name)
-    arcpy.AddMessage(f_list)
+    #arcpy.AddMessage(f_list[i][0] + " becoming " + end_name)
+    #arcpy.AddMessage(f_list)
     return f_list
 
 
 def main(thisDB, coordSystem, nCrossSections):
     # create feature dataset GeologicMap
     addMsgAndPrint("  Creating feature dataset GeologicMap...")
+    #adds multimap fields to tableDict if creating an EGDB or removes them if they are in tableDict and creating a file geodatabase
+    if thisDB[-4:] == ".sde":
+        for table in tableDict.keys():
+            #addMsgAndPrint(table)
+            for field in multimap_fields:
+                if field not in tableDict[table]:
+                    tableDict[table].append(field)
+            #showPyMessage(tableDict[table])
+    elif thisDB[-4:] == ".gdb":
+        for table in tableDict.keys():
+            #addMsgAndPrint(table)
+            for field in multimap_fields:
+                if field in tableDict[table]:
+                    tableDict[table].remove(field)
+            #showPyMessage(tableDict[table])    
+    #----------------------------------------------------------------------   
     try:
         arcpy.CreateFeatureDataset_management(thisDB, "GeologicMap", coordSystem)
     except:
@@ -217,7 +240,7 @@ def main(thisDB, coordSystem, nCrossSections):
         fieldDefs = tableDict[featureClass]
         if addLTYPE and fc != "DataSourcePolys":
             fieldDefs.append(["PTYPE", "String", "NullsOK", 50])
-        createFeatureClass(thisDB, "GeologicMap", featureClass, "POLYGON", fieldDefs)
+        createFeatureClass(thisDB, dbNameUserPrefix + "GeologicMap", dbNameUserPrefix + featureClass, "POLYGON", fieldDefs)
 
     # line feature classes
     featureClasses = ["ContactsAndFaults"]
@@ -229,7 +252,7 @@ def main(thisDB, coordSystem, nCrossSections):
         fieldDefs = tableDict[featureClass]
         if featureClass in ["ContactsAndFaults", "GeologicLines"] and addLTYPE:
             fieldDefs.append(["LTYPE", "String", "NullsOK", 50])
-        createFeatureClass(thisDB, "GeologicMap", featureClass, "POLYLINE", fieldDefs)
+        createFeatureClass(thisDB, dbNameUserPrefix + "GeologicMap", dbNameUserPrefix + featureClass, "POLYLINE", fieldDefs)
 
     # point feature classes
     featureClasses = []
@@ -269,25 +292,25 @@ def main(thisDB, coordSystem, nCrossSections):
         fieldDefs = tableDict[featureClass]
         if addLTYPE:
             fieldDefs.append(["PTTYPE", "String", "NullsOK", 50])
-        createFeatureClass(thisDB, "GeologicMap", featureClass, "POINT", fieldDefs)
+        createFeatureClass(thisDB, dbNameUserPrefix + "GeologicMap", dbNameUserPrefix + featureClass, "POINT", fieldDefs)
 
     # create feature dataset CorrelationOfMapUnits
     if "CorrelationOfMapUnits" in OptionalElements:
         addMsgAndPrint("  Creating feature dataset CorrelationOfMapUnits...")
         arcpy.CreateFeatureDataset_management(
-            thisDB, "CorrelationOfMapUnits", coordSystem
+            thisDB, dbNameUserPrefix + "CorrelationOfMapUnits", coordSystem
         )
         fieldDefs = tableDict["CMUMapUnitPolys"]
         createFeatureClass(
-            thisDB, "CorrelationOfMapUnits", "CMUMapUnitPolys", "POLYGON", fieldDefs
+            thisDB, dbNameUserPrefix + "CorrelationOfMapUnits", dbNameUserPrefix + "CMUMapUnitPolys", "POLYGON", fieldDefs
         )
         fieldDefs = tableDict["CMULines"]
         createFeatureClass(
-            thisDB, "CorrelationOfMapUnits", "CMULines", "POLYLINE", fieldDefs
+            thisDB, dbNameUserPrefix + "CorrelationOfMapUnits", dbNameUserPrefix + "CMULines", "POLYLINE", fieldDefs
         )
         fieldDefs = tableDict["CMUPoints"]
         createFeatureClass(
-            thisDB, "CorrelationOfMapUnits", "CMUPoints", "POINT", fieldDefs
+            thisDB, dbNameUserPrefix + "CorrelationOfMapUnits", dbNameUserPrefix + "CMUPoints", "POINT", fieldDefs
         )
 
     # create CrossSections
@@ -303,19 +326,19 @@ def main(thisDB, coordSystem, nCrossSections):
         xsName = "CrossSection" + xsLetter
         xsN = "CS" + xsLetter
         addMsgAndPrint("  Creating feature data set CrossSection" + xsLetter + "...")
-        arcpy.CreateFeatureDataset_management(thisDB, xsName, coordSystem)
+        arcpy.CreateFeatureDataset_management(thisDB, dbNameUserPrefix + xsName, coordSystem)
         muDefs = rename_field(
             tableDict["MapUnitPolys"], "MapUnitPolys_ID", xsN + "MapUnitPolys_ID"
         )
 
-        createFeatureClass(thisDB, xsName, xsN + "MapUnitPolys", "POLYGON", muDefs)
+        createFeatureClass(thisDB, dbNameUserPrefix + xsName, dbNameUserPrefix + xsN + "MapUnitPolys", "POLYGON", muDefs)
         cfDefs = rename_field(
             tableDict["ContactsAndFaults"],
             "ContactsAndFaults_ID",
             xsN + "ContactsAndFaults_ID",
         )
         createFeatureClass(
-            thisDB, xsName, xsN + "ContactsAndFaults", "POLYLINE", cfDefs
+            thisDB, dbNameUserPrefix + xsName, dbNameUserPrefix + xsN + "ContactsAndFaults", "POLYLINE", cfDefs
         )
 
         if "OrientationPoints" in OptionalElements:
@@ -325,7 +348,7 @@ def main(thisDB, coordSystem, nCrossSections):
                 xsN + "OrientationPoints_ID",
             )
             createFeatureClass(
-                thisDB, xsName, xsN + "OrientationPoints", "POINT", opDefs
+                thisDB, dbNameUserPrefix + xsName, dbNameUserPrefix + xsN + "OrientationPoints", "POINT", opDefs
             )
 
     # create tables
@@ -341,7 +364,7 @@ def main(thisDB, coordSystem, nCrossSections):
     for table in tables:
         addMsgAndPrint("  Creating table " + table + "...")
         try:
-            arcpy.CreateTable_management(thisDB, table)
+            arcpy.CreateTable_management(thisDB, dbNameUserPrefix + table)
             fieldDefs = tableDict[table]
             for fDef in fieldDefs:
                 try:
@@ -383,29 +406,34 @@ def main(thisDB, coordSystem, nCrossSections):
     arcpy.TableToTable_conversion(geomat_csv, thisDB, "GeoMaterialDict")
 
     #   make GeoMaterials domain
-    arcpy.TableToDomain_management(
-        thisDB + "/GeoMaterialDict",
-        "GeoMaterial",
-        "IndentedName",
-        thisDB,
-        "GeoMaterials",
+    arcpy.env.workspace = thisDB
+    desc = arcpy.Describe(thisDB)
+    if dbNameUserPrefix + "GeoMaterials" not in desc.domains:
+        arcpy.TableToDomain_management(
+            thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'GeoMaterialDict')[0],
+            "GeoMaterial",
+            "IndentedName",
+            thisDB,
+            dbNameUserPrefix + "GeoMaterials"
     )
     #   attach it to DMU field GeoMaterial
     arcpy.AssignDomainToField_management(
-        thisDB + "/DescriptionOfMapUnits", "GeoMaterial", "GeoMaterials"
+        thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0], "GeoMaterial", dbNameUserPrefix + "GeoMaterials"
     )
     #  Make GeoMaterialConfs domain, attach it to DMU field GeoMaterialConf
-    arcpy.CreateDomain_management(
-        thisDB, "GeoMaterialConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
-    )
-    for val in GeoMaterialConfidenceValues:
-        arcpy.AddCodedValueToDomain_management(
-            thisDB, "GeoMaterialConfidenceValues", val, val
+    desc = arcpy.Describe(thisDB)
+    if dbNameUserPrefix + "GeoMaterialConfidenceValues" not in desc.domains:    
+        arcpy.CreateDomain_management(                                                              
+            thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
         )
+        for val in GeoMaterialConfidenceValues:
+            arcpy.AddCodedValueToDomain_management(
+                thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", val, val
+            )
     arcpy.AssignDomainToField_management(
-        thisDB + "/DescriptionOfMapUnits",
+        thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0],
         "GeoMaterialConfidence",
-        "GeoMaterialConfidenceValues",
+        dbNameUserPrefix + "GeoMaterialConfidenceValues",
     )
 
     # Confidence domains, Glossary entries, and DataSources entry
@@ -415,16 +443,18 @@ def main(thisDB, coordSystem, nCrossSections):
         )
         #  create domain, add domain values, and link domain to appropriate fields
         addMsgAndPrint("    Creating domain, linking domain to appropriate fields")
-        arcpy.CreateDomain_management(
-            thisDB, "ExIDConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
-        )
-        for item in DefaultExIDConfidenceValues:  # items are [term, definition, source]
-            code = item[0]
-            arcpy.AddCodedValueToDomain_management(
-                thisDB, "ExIDConfidenceValues", code, code
-            )
+        desc = arcpy.Describe(thisDB)
+        if dbNameUserPrefix + "ExIDConfidenceValues" not in desc.domains:        
+            arcpy.CreateDomain_management(
+                thisDB, dbNameUserPrefix + "ExIDConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
+                )
+            for item in DefaultExIDConfidenceValues:  # items are [term, definition, source]
+                code = item[0]
+                arcpy.AddCodedValueToDomain_management(
+                    thisDB, dbNameUserPrefix + "ExIDConfidenceValues", code, code
+                )
         arcpy.env.workspace = thisDB
-        dataSets = arcpy.ListDatasets()
+        dataSets = arcpy.ListDatasets(dbNameUserPrefix + '*')
         for ds in dataSets:
             arcpy.env.workspace = thisDB + "/" + ds
             fcs = arcpy.ListFeatureClasses()
@@ -438,13 +468,13 @@ def main(thisDB, coordSystem, nCrossSections):
                     ):
                         # addMsgAndPrint('    '+ds+'/'+fc+':'+fn)
                         arcpy.AssignDomainToField_management(
-                            thisDB + "/" + ds + "/" + fc, fn, "ExIDConfidenceValues"
+                            thisDB + "/" + ds + "/" + fc, fn, dbNameUserPrefix + "ExIDConfidenceValues"
                         )
         # add definitions of domain values to Glossary
         addMsgAndPrint("    Adding domain values to Glossary")
         ## create insert cursor on Glossary
         cursor = arcpy.da.InsertCursor(
-            thisDB + "/Glossary", ["Term", "Definition", "DefinitionSourceID"]
+            thisDB + "/" + dbNameUserPrefix + "Glossary", ["Term", "Definition", "DefinitionSourceID"]
         )
         for item in DefaultExIDConfidenceValues:
             cursor.insertRow((item[0], item[1], item[2]))
@@ -453,7 +483,7 @@ def main(thisDB, coordSystem, nCrossSections):
         addMsgAndPrint("    Adding definition source to DataSources")
         ## create insert cursor on DataSources
         cursor = arcpy.da.InsertCursor(
-            thisDB + "/DataSources", ["DataSources_ID", "Source", "URL"]
+            thisDB + "/" + dbNameUserPrefix + "DataSources", ["DataSources_ID", "Source", "URL"]
         )
         cursor.insertRow(
             (
@@ -464,12 +494,62 @@ def main(thisDB, coordSystem, nCrossSections):
         )
         del cursor
 
+    #if EGDB then add multimap domains to fields
+    if thisDB[-4:] == ".sde":
+        addMsgAndPrint("    Adding multimap domains and assigning to fields")
+        
+        #  Make MapScale domain, attach it to MapScale field 
+        desc = arcpy.Describe(thisDB)
+        if dbNameUserPrefix + "MapNameValues" not in desc.domains:
+            arcpy.CreateDomain_management(thisDB, dbNameUserPrefix + "MapNameValues", "", "TEXT", "CODED")
+            for val in MapNameValues:
+                arcpy.AddCodedValueToDomain_management(thisDB, dbNameUserPrefix + "MapNameValues", val, val)
+        arcpy.env.workspace = thisDB
+        dataSets = arcpy.ListDatasets(dbNameUserPrefix + '*')
+        for ds in dataSets:
+            arcpy.env.workspace = thisDB + "/" + ds
+            for fc in arcpy.ListFeatureClasses():
+                arcpy.AssignDomainToField_management(fc,"MapName",dbNameUserPrefix + "MapNameValues")   
+        arcpy.env.workspace = thisDB
+        for tbl in arcpy.ListTables(dbNameUserPrefix + '*'):
+            if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
+                arcpy.AssignDomainToField_management(tbl,"MapName",dbNameUserPrefix + "MapNameValues")  
+                
+        # #  Make MapType domain, attach it to MapType field 
+        # arcpy.CreateDomain_management(thisDB, "MapTypeValues", "", "TEXT", "CODED")
+        # for val in MapTypeValues:
+            # arcpy.AddCodedValueToDomain_management(thisDB, "MapTypeValues", val, val)
+        # arcpy.env.workspace = thisDB
+        # dataSets = arcpy.ListDatasets()
+        # for ds in dataSets:
+            # arcpy.env.workspace = thisDB + "/" + ds
+            # for fc in arcpy.ListFeatureClasses():
+                # arcpy.AssignDomainToField_management(fc,"MapType","MapTypeValues")   
+        # arcpy.env.workspace = thisDB
+        # for tbl in arcpy.ListTables():
+            # if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
+                # arcpy.AssignDomainToField_management(tbl,"MapType","MapTypeValues")
+
+        # #  Make MapScale domain, attach it to MapScale field 
+        # arcpy.CreateDomain_management(thisDB, "MapScaleValues", "", "TEXT", "CODED")
+        # for val in MapScaleValues:
+            # arcpy.AddCodedValueToDomain_management(thisDB, "MapScaleValues", val, val)
+        # arcpy.env.workspace = thisDB
+        # dataSets = arcpy.ListDatasets()
+        # for ds in dataSets:
+            # arcpy.env.workspace = thisDB + "/" + ds
+            # for fc in arcpy.ListFeatureClasses():
+                # arcpy.AssignDomainToField_management(fc,"MapScale","MapScaleValues")   
+        # arcpy.env.workspace = thisDB
+        # for tbl in arcpy.ListTables():
+            # if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
+                # arcpy.AssignDomainToField_management(tbl,"MapScale","MapScaleValues") 
     # if cartoReps, add cartographic representations to all feature classes
     # trackEdits, add editor tracking to all feature classes and tables
     if cartoReps or trackEdits:
         arcpy.env.workspace = thisDB
-        tables = arcpy.ListTables()
-        datasets = arcpy.ListDatasets()
+        tables = arcpy.ListTables(dbNameUserPrefix + '*')
+        datasets = arcpy.ListDatasets(dbNameUserPrefix + '*')
         for dataset in datasets:
             addMsgAndPrint("  Dataset " + dataset)
             arcpy.env.workspace = thisDB + "/" + dataset
@@ -518,22 +598,30 @@ def main(thisDB, coordSystem, nCrossSections):
 
 
 def createDatabase(outputDir, thisDB):
-    addMsgAndPrint("  Creating geodatabase " + thisDB + "...")
-    if arcpy.Exists(outputDir + "/" + thisDB):
-        addMsgAndPrint("  Geodatabase " + thisDB + " already exists.")
-        addMsgAndPrint("   forcing exit with error")
-        raise arcpy.ExecuteError
-    try:
-        # removed check for mdb. Personal geodatabases are out - ET
-        if thisDB[-4:] == ".gdb":
-            arcpy.CreateFileGDB_management(outputDir, thisDB)
+    if thisDB[-4:] == ".gdb": 
+        addMsgAndPrint("  Creating geodatabase " + thisDB + "...")
+        if arcpy.Exists(outputDir + "/" + thisDB):
+            addMsgAndPrint("  Geodatabase " + thisDB + " already exists.")
+            addMsgAndPrint("   forcing exit with error")
+            raise arcpy.ExecuteError
+        try:
+            # removed check for mdb. Personal geodatabases are out - ET
+            if thisDB[-4:] == ".gdb":
+                arcpy.CreateFileGDB_management(outputDir, thisDB)
+            return True
+        except:
+            addMsgAndPrint("Failed to create geodatabase " + outputDir + "/" + thisDB)
+            addMsgAndPrint(arcpy.GetMessages(2))
+            return False
+
+
+    if outputDir[-4:] == '.sde':
+        arcpy.env.workspace = outputDir
+        if len(arcpy.ListDatasets('*' + dbUser + '.GeologicMap')) > 0:
+            addMsgAndPrint("  Enterprise geodatabase objects already exist.")
+            addMsgAndPrint("   forcing exit with error")
+            raise arcpy.ExecuteError  
         return True
-    except:
-        addMsgAndPrint("Failed to create geodatabase " + outputDir + "/" + thisDB)
-        addMsgAndPrint(arcpy.GetMessages(2))
-        return False
-
-
 #########################################
 
 addMsgAndPrint(versionString)
@@ -545,9 +633,17 @@ if len(sys.argv) >= 6:
     if outputDir == "#":
         outputDir = os.getcwd()
     outputDir = outputDir.replace("\\", "/")
+    if outputDir[-4:]=='.sde':
+        addMsgAndPrint('Creating GeMS database in enterprise geodatabase')
+        desc = arcpy.Describe(outputDir)
+        cp = desc.connectionProperties
+        dbUser = cp.user
+        dbName = cp.database
+        dbNameUserPrefix = dbName + '.' + dbUser + '.'                                           
 
     thisDB = sys.argv[2]
-    thisDB = thisDB + ".gdb"
+    if outputDir[-4:]!='.sde':                       
+        thisDB = thisDB + ".gdb"
 
     coordSystem = sys.argv[3]
 
@@ -597,8 +693,14 @@ if len(sys.argv) >= 6:
 
     # create gdb in output directory and run main routine
     if createDatabase(outputDir, thisDB):
-        thisDB = os.path.join(outputDir, thisDB)
+        if outputDir[-4:] == ".sde":
+            thisDB = outputDir   #points to .sde file   
+        elif outputDir[-4:] == ".gdb":                         
+            thisDB = os.path.join(outputDir, thisDB)
         # Arc 10 version refreshed ArcCatalog here, but there is no equivalent with AGPro
+        if debug:
+            addMsgAndPrint(f"thisDB = {thisDB}") 
+            addMsgAndPrint(f"dbNameUserPrefix = {dbNameUserPrefix}")            
         main(thisDB, coordSystem, nCrossSections)
 
     # try to write a readme within the .gdb

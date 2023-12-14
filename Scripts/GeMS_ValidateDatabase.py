@@ -85,16 +85,15 @@ from jinja2 import Environment, FileSystemLoader
 from osgeo import ogr
 
 # for debugging
-from importlib import reload
-
+# from importlib import reload
 # reload(guf)
 # reload(tp)
-reload(gdef)
+# reload(gdef)
 
 # values dictionary gets sent to report_template.jinja errors_template.jinja
 val = {}
 
-version_string = "GeMS_ValidateDatabase.py, version of 9/28/2023"
+version_string = "GeMS_ValidateDatabase.py, version of 11/28/2023"
 val["version_string"] = version_string
 val["datetime"] = time.asctime(time.localtime(time.time()))
 
@@ -215,9 +214,12 @@ def rule2_1(db_dict, is_gpkg):
         k
         for k, v in db_dict.items()
         if v["gems_equivalent"] in gdef.required_geologic_map_feature_classes
-        and not "crosssection" in v["feature_dataset"].lower()
-        and not "cmu" in v["feature_dataset"].lower()
+        and not any(
+            n in v["feature_dataset"].lower()
+            for n in ("correlationofmapunits", "cmu", "crosssection")
+        )
     ]
+    # print(fcs)
     # find_topology_pairs returns [GeologicMap feature dataset(if gdb), fd_tag_name, mapunitpolys, contactsandfaults]
     possible_pairs = tp.find_topology_pairs(fcs, is_gpkg, db_dict)
     if possible_pairs:
@@ -283,8 +285,6 @@ def check_fields(db_dict, level, schema_extensions):
             if not v["gems_equivalent"] in req_tables
             and not v["gems_equivalent"] == ""
             and not v["dataType"] in ("Topology", "Annotation", "FeatureDataset")
-            and not "cartographicpoints" in k.lower()
-            and not "cartographiclines" in k.lower()
         ]
         header = "3.1 Missing or mis-defined fields"
 
@@ -315,6 +315,9 @@ def check_fields(db_dict, level, schema_extensions):
                 if not field[2] == "Optional":
                     html = f'<span class="table">{table}</span> missing field <span class="field">{field[0]}</span>'
                     errors.append(html)
+                else:
+                    html = f'<span class="table">{table}</span> field <span class="field">{field[0]}</span>'
+                    fld_warnings.append(html)
             else:
                 req_type = field[1]
 
@@ -332,7 +335,7 @@ def check_fields(db_dict, level, schema_extensions):
             f.name
             for f in found_fields
             if f.name.lower() not in req_names
-            and not f.name.lower().endswith("_id")
+            and not f.name.lower() == f"{table}_id"
             and not f.name.lower() in lower_standard
         ]:
             schema_extensions.append(
@@ -886,7 +889,7 @@ def rule3_10(db_dict):
     hk_dict = values(db_dict, "DescriptionOfMapUnits", "HierarchyKey", "dictionary")
 
     # return early if HKs is empty
-    if not hk_dict:
+    if not hk_dict or all(v is None for v in hk_dict.values()):
         hkey_errors.append("No HierarchyKey values")
         return hkey_errors, hkey_warnings
 

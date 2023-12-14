@@ -36,12 +36,9 @@ versionString = "GeMS_Definition.py, version of 8/21/2023"
 # to think about: Maybe change all NoNulls to NullsOK?
 
 defaultLength = 254
-#mapUnitLength = 10
-mapUnitLength = 25
+mapUnitLength = 10
 IDLength = 50
-labelLength = 150          
-#memoLength = 3000
-memoLength = 6000 
+memoLength = 3000
 booleanLength = 1
 
 # attributes are in order Name DataType NullStatus suggestedLength
@@ -51,7 +48,7 @@ startDict = {
     "MapUnitPolys": [
         ["MapUnit", "String", "NoNulls", mapUnitLength],
         ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
@@ -62,7 +59,7 @@ startDict = {
         ["LocationConfidenceMeters", "Single", "NoNulls"],
         ["ExistenceConfidence", "String", "NoNulls", IDLength],
         ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
@@ -100,18 +97,6 @@ startDict = {
         ["Definition", "String", "NoNulls", 3000],
     ],
     # as-needed tables and feature classes
-    # "GenericPoints": [
-    #     ["Type", "String", "NoNulls", defaultLength],
-    #     ["Symbol", "String", "NullsOK", defaultLength],
-    #     ["Label", "String", "NullsOK", IDLength],
-    #     ["LocationConfidenceMeters", "Single", "NoNulls"],
-    #     ["PlotAtScale", "Single", "NoNulls"],
-    #     ["StationsID", "String", "Optional", IDLength],
-    #     ["MapUnit", "String", "NullsOK", mapUnitLength],
-    #     ["LocationSourceID", "String", "NoNulls", IDLength],
-    #     ["DataSourceID", "String", "NoNulls", IDLength],
-    #     ["Notes", "String", "Optional", defaultLength],
-    # ],
     "GenericPoints": [
         ["Type", "String", "Optional", defaultLength],
         ["Symbol", "String", "Optional", defaultLength],
@@ -124,21 +109,6 @@ startDict = {
         ["DataSourceID", "String", "Optional", IDLength],
         ["Notes", "String", "Optional", defaultLength],
     ],
-    # "GenericSamples": [
-    #     ["Type", "String", "NoNulls", defaultLength],
-    #     ["Symbol", "String", "NullsOK", defaultLength],
-    #     ["Label", "String", "NullsOK", IDLength],
-    #     ["FieldSampleID", "String", "NullsOK", defaultLength],
-    #     ["AlternateSampleID", "String", "NullsOK", defaultLength],
-    #     ["MaterialAnalyzed", "String", "NullsOK", defaultLength],
-    #     ["LocationConfidenceMeters", "Single", "NoNulls"],
-    #     ["PlotAtScale", "Single", "NoNulls"],
-    #     ["StationsID", "String", "Optional", IDLength],
-    #     ["MapUnit", "String", "NoNulls", mapUnitLength],
-    #     ["LocationSourceID", "String", "NoNulls", IDLength],
-    #     ["DataSourceID", "String", "NoNulls", IDLength],
-    #     ["Notes", "String", "Optional", defaultLength],
-    # ],
     "GenericSamples": [
         ["Type", "String", "Optional", defaultLength],
         ["Symbol", "String", "Optional", defaultLength],
@@ -159,7 +129,7 @@ startDict = {
         ["Azimuth", "Single", "NoNulls"],
         ["Inclination", "Single", "NoNulls"],
         ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["LocationConfidenceMeters", "Single", "NoNulls"],
         ["IdentityConfidence", "String", "NoNulls", 50],
         ["OrientationConfidenceDegrees", "Single", "NoNulls"],
@@ -176,7 +146,7 @@ startDict = {
         ["AlternateSampleID", "String", "NullsOK", defaultLength],
         ["MapUnit", "String", "NoNulls", mapUnitLength],
         ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["LocationConfidenceMeters", "Single", "NoNulls"],
         ["PlotAtScale", "Single", "NoNulls"],
         ["MaterialAnalyzed", "String", "NullsOK", defaultLength],
@@ -196,7 +166,7 @@ startDict = {
         ["ObservedMapUnit", "String", "NullsOK", mapUnitLength],
         ["MapUnit", "String", "NullsOK", mapUnitLength],
         ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["PlotAtScale", "Single", "NoNulls"],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
@@ -215,14 +185,21 @@ startDict = {
         ["ExistenceConfidence", "String", "NoNulls", IDLength],
         ["IdentityConfidence", "String", "NoNulls", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
     ],
     "CartographicLines": [
         ["Type", "String", "NoNulls", defaultLength],
         ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
+        ["DataSourceID", "String", "NoNulls", IDLength],
+        ["Notes", "String", "Optional", defaultLength],
+    ],
+    "CartographicPoints": [
+        ["Type", "String", "NoNulls", defaultLength],
+        ["Symbol", "String", "NullsOK", defaultLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
     ],
@@ -231,7 +208,7 @@ startDict = {
         ["Value", "Single", "NoNulls"],
         ["ValueConfidence", "Single", "NoNulls"],
         ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
     ],
@@ -241,7 +218,7 @@ startDict = {
         ["LocationConfidenceMeters", "Single", "NoNulls"],
         ["ExistenceConfidence", "String", "NoNulls", IDLength],
         ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["PlotAtScale", "Single", "NoNulls"],
         ["DataSourceID", "String", "NoNulls", IDLength],
@@ -252,7 +229,7 @@ startDict = {
         ["LocationConfidenceMeters", "Single", "NoNulls"],
         ["ExistenceConfidence", "String", "NoNulls", IDLength],
         ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["PlotAtScale", "Single", "NoNulls"],
         ["DataSourceID", "String", "NoNulls", IDLength],
@@ -261,7 +238,7 @@ startDict = {
     "MapUnitOverlayPolys": [
         ["MapUnit", "String", "NoNulls", defaultLength],
         ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
@@ -269,7 +246,7 @@ startDict = {
     "OverlayPolys": [
         ["Type", "String", "NoNulls", defaultLength],
         ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["DataSourceID", "String", "NoNulls", IDLength],
         ["Notes", "String", "Optional", defaultLength],
@@ -286,7 +263,7 @@ startDict = {
     # optional feature classes and tables described in GeMS specification
     "CMUMapUnitPolys": [
         ["MapUnit", "String", "NoNulls", mapUnitLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
     ],
     "CMULines": [
@@ -295,7 +272,7 @@ startDict = {
     ],
     "CMUPoints": [
         ["Type", "String", "NoNulls", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
     ],
     "MiscellaneousMapInformation": [
@@ -322,7 +299,7 @@ startDict = {
         ["Type", "String", "NoNulls", defaultLength],
         ["StationsID", "String", "NullsOK", IDLength],
         ["MapUnit", "String", "NoNulls", mapUnitLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["FieldSampleID", "String", "NullsOK", defaultLength],
         ["AlternateSampleID", "String", "NullsOK", defaultLength],
@@ -340,7 +317,7 @@ startDict = {
         ["Type", "String", "NoNulls", defaultLength],
         ["StationsID", "String", "NullsOK", IDLength],
         ["MapUnit", "String", "NoNulls", mapUnitLength],
-        ["Label", "String", "NullsOK", labelLength],
+        ["Label", "String", "NullsOK", IDLength],
         ["Symbol", "String", "NullsOK", defaultLength],
         ["PlotAtScale", "Single", "NoNulls"],
         ["LocationConfidenceMeters", "Single", "NoNulls"],
@@ -350,63 +327,42 @@ startDict = {
         ["PhotoSubject", "String", "NullsOK", defaultLength],
         ["ViewDirection", "String", "NullsOK", defaultLength],
         ["ViewWidth", "String", "NullsOK", defaultLength],
-        ["FileName", "String", "NullsOK", defaultLength],
         ["Notes", "String", "NullsOK", defaultLength],
     ],
-    "GeologicPoints": [
-        ["Type", "String", "NoNulls", defaultLength],
-        ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
-        ["IdentityConfidence", "String", "NoNulls", IDLength],
-        ["LocationConfidenceMeters", "Single", "NoNulls"],
-        ["PlotAtScale", "Single", "NoNulls"],
-        ["StationsID", "String", "NullsOK", IDLength],
-        ["MapUnit", "String", "NullsOK", mapUnitLength],
-        ["LocationSourceID", "String", "NoNulls", IDLength],
-        ["DataSourceID", "String", "NoNulls", IDLength],
-        ["Notes", "String", "Optional", defaultLength],    
-    ],
-    "CartographicPoints": [
-        ["Type", "String", "NoNulls", defaultLength],
-        ["Symbol", "String", "NullsOK", defaultLength],
-        ["Label", "String", "NullsOK", labelLength],
-        ["DataSourceID", "String", "NoNulls", IDLength],
-        ["Notes", "String", "Optional", defaultLength],
-    ],                       
 }
 
 shape_dict = {
-    "MapUnitPolys": "Polygon",
-    "ContactsAndFaults": "Polyline",
-    "GenericPoints": "Point",
-    "GenericSamples": "Point",
-    "OrientationPoints": "Point",
-    "GeochronPoints": "Point",
-    "Stations": "Point",
-    "GeologicLines": "Polyline",
-    "CartographicLines": "Polyline",
-    "IsoValueLines": "Polyline",
-    "MapUnitLines": "Polyline",
-    "MapUnitPoints": "Point",
-    "MapUnitOverlayPolys": "Polygon",
-    "OverlayPolys": "Polygon",
-    "DataSourcePolys": "Polygon",
-    "CMUMapUnitPolys": "Polygon",
-    "CMULines": "Polyline",
-    "CMUPoints": "Point",
-    "FossilPoints": "Point",
-    "PhotoPoints": "Point",
-    "DescriptionOfMapUnits": "Table",
-    "DataSources": "Table",
-    "Glossary": "Table",
-    "GeoMaterialDict": "Table",
-    "GenericSamples": "Table",
-    "RepurposedSymbols": "Table",
-    "MiscellaneousMapInformation": "Table",
-    "LayerList": "Table",
-    "StandardLithology": "Table",
-    "GeologicPoints": "Point",
-    "CartographicPoints": "Point",
+    "MapUnitPolys": "polygon",
+    "ContactsAndFaults": "line",
+    "GenericPoints": "point",
+    "GenericSamples": "point",
+    "OrientationPoints": "point",
+    "GeochronPoints": "point",
+    "Stations": "point",
+    "GeologicLines": "line",
+    "CartographicLines": "line",
+    "CartographicPoints": "point",
+    "IsoValueLines": "line",
+    "MapUnitLines": "line",
+    "MapUnitPoints": "point",
+    "MapUnitOverlayPolys": "polygon",
+    "MapUnitPolysLabelPoints": "point",
+    "OverlayPolys": "polygon",
+    "DataSourcePolys": "polygon",
+    "CMUMapUnitPolys": "polygon",
+    "CMULines": "line",
+    "CMUPoints": "point",
+    "FossilPoints": "point",
+    "PhotoPoints": "point",
+    "DescriptionOfMapUnits": "table",
+    "DataSources": "table",
+    "Glossary": "table",
+    "GeoMaterialDict": "table",
+    "GenericSamples": "table",
+    "RepurposedSymbols": "table",
+    "MiscellaneousMapInformation": "table",
+    "LayerList": "table",
+    "StandardLithology": "table",
 }
 
 GeoMaterialConfidenceValues = ["High", "Medium", "Low"]
@@ -439,24 +395,6 @@ DefaultExIDConfidenceValues = [
     ],
 ]
 
-# #---7/25/2023 CHH, map type and scale domain lists-------
-# MapTypeValues = [
-    # "Bedrock", 
-    # "Surficial"
-# ]
-# MapScaleValues = [
-    # "24000",
-    # "100000",
-    # "250000",
-    # "500000"
-# ]
-MapNameValues = [
-    "augusta",
-    "beaver-pond-se",
-    "camden",
-    "west-rockport"
-]
-#---------------------------------------------                                                                                                       
 
 enumeratedValueDomainFieldList = [
     "Type",
@@ -582,9 +520,6 @@ entityDict = {
     "RepurposedSymbols": 'Non-spatial table that identifies symbols from the FGDC Digital Cartographic Standard for Geologic Map Symbolization (FGDC-STD-013-2006) that are "repurposed" for this map.',
     "StandardLithology": "Non-spatial table for describing the lithologic constituents of geologic map units. Has 1 to many rows per map unit. May be used to extend and supplement the GeneralLithology terms and unstructured free text Description found in the DescriptionOfMapUnits table.",
     "Stations": "Point locations of field observations and (or) samples.",
-    "GeologicPoints": "Small areas of distinct rock type or small (at scale) geologic features.",
-    "CartographicPoints": "Points (e.g., labels) that have no real-world physical existence, such that LocationConfidenceMeters, ExistenceConfidence, and IdentityConfidence attributes are meaningless, and that are never shown as concealed beneath a covering unit.",
-    "PhotoPoints": "Locations of photographs taken of geologic features.",
 }
 
 # fields we don't want listed or described when inventorying dataset:
@@ -662,13 +597,6 @@ req_source_ids = [
 ]
 
 
-#---7/25/2023 CHH, fields needed in each entity for multimap enterprise geodatabase
-multimap_fields = [
-    ["MapName", "String", "NoNulls", 100],
-    # ["MapType", "String", "NoNulls", 30],
-    # ["MapScale", "String", "NoNulls", 12]
-]
-#----------------------------------------------------------------------------------                                                                              
 required_geologic_map_feature_classes = ["ContactsAndFaults", "MapUnitPolys"]
 
 

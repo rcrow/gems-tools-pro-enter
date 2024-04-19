@@ -13,6 +13,11 @@
 #  Renamed from mapOutline_Arc10.py to mapOutline_AGP2.py
 #  Evan Thoms
 
+# April 2024: tool rewritten to eliminate need for temporary feature classes, tables, files, and scratch workspace
+#  All intermidiate processing done with in-memory objects instead.
+#  Added support for enterprise geodatabases.
+#  Christian Halsted
+
 import arcpy, sys, os
 from GeMS_utilityFunctions import *
 
@@ -92,28 +97,28 @@ addMsgAndPrint(versionString)
 
 ## MAP BOUNDARY
 # get and check inputs
-SELongStr = sys.argv[1]
-SELatStr = sys.argv[2]
-dLong = float(sys.argv[3])
-dLat = float(sys.argv[4])
-ticInterval = float(sys.argv[5])
-if sys.argv[6] == "true":
+SELongStr = arcpy.GetParameterAsText(0)
+SELatStr = arcpy.GetParameterAsText(1)
+dLong = float(arcpy.GetParameterAsText(2))
+dLat = float(arcpy.GetParameterAsText(3))
+ticInterval = float(arcpy.GetParameterAsText(4))
+if arcpy.GetParameterAsText(5) == "true":
     isNAD27 = True
 else:
     isNAD27 = False
 
 if isNAD27:
-    xycs = 'GEOGCS["GCS_North_American_1927",DATUM["D_North_American_1927",SPHEROID["Clarke_1866",6378206.4,294.9786982]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG",4267]]'
+    xycs = arcpy.SpatialReference(4267) #xycs = 'GEOGCS["GCS_North_American_1927",DATUM["D_North_American_1927",SPHEROID["Clarke_1866",6378206.4,294.9786982]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG",4267]]'
 else:
-    xycs = 'GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG",4269]]'
-
-outgdb = sys.argv[7]
-outSpRef = sys.argv[8]
-scratch = sys.argv[9]
+    xycs = arcpy.SpatialReference(4269) #xycs = 'GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG",4269]]'
+    
+outgdb = arcpy.GetParameterAsText(6)
+input_schema = arcpy.GetParameterAsText(7)
+input_mapname = arcpy.GetParameterAsText(8)
+outSpRef = arcpy.GetParameterAsText(9)
 
 # set workspace
 arcpy.env.workspace = outgdb
-arcpy.env.scratchWorkspace = scratch
 
 # calculate maxLong and minLat, dLat, dLong, minLong, maxLat
 maxLong = dmsStringToDD(SELongStr)
@@ -126,127 +131,136 @@ minLong = maxLong - dLong
 maxLat = minLat + dLat
 
 # test for and delete any feature classes to be created
-for xx in ["xxMapOutline", "MapOutline", "xxTics", "Tics"]:
-    if arcpy.Exists(xx):
-        arcpy.Delete_management(xx)
-        addMsgAndPrint("  deleted feature class {}".format(xx))
+for fc in ["MapOutline", "MapTics"]:
+    if arcpy.Exists(fc) and outgdb[-4:] == ".gdb":
+        arcpy.Delete_management(fc)
+        addMsgAndPrint("  deleted feature class {}".format(fc))
+    elif arcpy.Exists(fc) and outgdb[-4:] == ".sde":    
+        arcpy.management.MakeFeatureLayer(outgdb + '\\' + input_schema + '.' + fc, 'del_layer', "MapName = '" + input_mapname + "'")
+        arcpy.management.DeleteRows('del_layer')
 
 ## MAP OUTLINE
-# make XY file for map outline
-addMsgAndPrint("  writing map outline file")
-genf = open(os.path.join(scratch, "xxxbox.csv"), "w")
-genf.write("LONGITUDE,LATITUDE\n")
-genf.write("{},{}\n".format(str(minLong), str(maxLat)))
-genf.write("{},{}\n".format(str(maxLong), str(maxLat)))
-genf.write("{},{}\n".format(str(maxLong), str(minLat)))
-genf.write("{},{}\n".format(str(minLong), str(minLat)))
-genf.write("{},{}\n".format(str(minLong), str(maxLat)))
-genf.close()
+addMsgAndPrint("  writing map outline feature")
+sr = arcpy.SpatialReference(text=outSpRef)
+if outgdb[-4:] == ".gdb":
+    arcpy.management.CreateFeatureclass(outgdb, 'MapOutline', "POLYLINE", None, "DISABLED", "DISABLED", sr, '', 0, 0, 0, '')
+    
+array = arcpy.Array([arcpy.Point(minLong, maxLat),
+                     arcpy.Point(maxLong, maxLat),
+                     arcpy.Point(maxLong, minLat),
+                     arcpy.Point(minLong, minLat),
+                     arcpy.Point(minLong, maxLat)])
+#spatial_reference = arcpy.SpatialReference(4326)
+polyline = arcpy.Polyline(array, xycs)
 
-# convert XY file to .dbf table
-boxdbf = arcpy.CreateScratchName("xxx", ".dbf", "", scratch)
-boxdbf = os.path.basename(boxdbf)
-arcpy.TableToTable_conversion(os.path.join(scratch, "xxxbox.csv"), scratch, boxdbf)
-
-# make XY event layer from .dbf table
-arcpy.MakeXYEventLayer_management(
-    os.path.join(scratch, boxdbf), "LONGITUDE", "LATITUDE", "boxlayer", xycs
-)
-
-# convert event layer to preliminary line feature class with PointsToLine_management
-arcpy.PointsToLine_management("boxlayer", "xxMapOutline")
-
-# densify MapOutline
-arcpy.Densify_edit("xxMapOutline", "DISTANCE", 0.0001)
-
-# project to correct spatial reference
-### THIS ASSUMES THAT OUTPUT COORDINATE SYSTEM IS HARN AND WE ARE IN OREGON OR WASHINGTON!!
 if isNAD27:
-    geotransformation = "NAD_1927_To_NAD_1983_NADCON;NAD_1983_To_HARN_OR_WA"
+    geotransformation = arcpy.ListTransformations (xycs, sr)[0] #"NAD_1927_To_NAD_1983_NADCON"
 else:
-    geotransformation = "NAD_1983_To_HARN_OR_WA"
+    geotransformation = None # "WGS_1984_(ITRF00)_To_NAD_1983"
 
-geotransformation = ""
+polyline_projected = polyline.projectAs(sr, geotransformation)
+arcpy.edit.Densify(polyline_projected, "DISTANCE", "1 Meters")
+if outgdb[-4:] == ".gdb":
+    cursor = arcpy.da.InsertCursor(outgdb + '\MapOutline', ["SHAPE@"])
+    cursor.insertRow([polyline_projected])
+elif outgdb[-4:] == ".sde":
+    edit = arcpy.da.Editor(outgdb)
+    edit.startEditing(False, True)
+    edit.startOperation()
+    cursor = arcpy.da.InsertCursor(outgdb + '\\' + input_schema + '.MapOutline', ["SHAPE@","MapName"])    
+    cursor.insertRow([polyline_projected, input_mapname])
+    edit.stopOperation()
+    edit.stopEditing(True)
 
-arcpy.Project_management(
-    "xxMapOutline", "MapOutline", outSpRef, geotransformation, xycs
-)
-
-## TICS
-# calculate minTicLong, minTicLat, maxTicLong, maxTiclat
+## TICS  
+addMsgAndPrint("  writing tic features")
 ticInterval = ticInterval / 60.0  # convert minutes to degrees
-minTicLong = int(round(0.1 + minLong // ticInterval))
-maxTicLong = int(round(1.1 + maxLong // ticInterval))
-minTicLat = int(round(0.1 + minLat // ticInterval))
-maxTicLat = int(round(1.1 + maxLat // ticInterval))
-if minTicLong < 0:
-    minTicLong = minTicLong + 1
-if maxTicLong < 0:
-    maxTicLong = maxTicLong + 1
-
-# make xy file for tics
-addMsgAndPrint("  writing tic file")
-genf = open(os.path.join(scratch, "xxxtics.csv"), "w")
-genf.write("ID,LONGITUDE,LATITUDE\n")
+ticList = []  #ID,LONGITUDE,LATITUDE
 nTic = 1
-for y in range(minTicLat, maxTicLat):
-    ticLat = y * ticInterval
-    for x in range(minTicLong, maxTicLong):
-        ticLong = x * ticInterval
-        genf.write(str(nTic) + c + str(ticLong) + c + str(ticLat) + "\n")
+for y in range(0, int(dLat / ticInterval) + 1):
+    ticLat = (y * ticInterval) + minLat
+    for x in range(0, int(dLong / ticInterval) + 1):
+        ticLong = (x * ticInterval) + minLong
+        ticList.append([nTic, ticLong, ticLat])
         nTic = nTic + 1
-genf.close()
+# addMsgAndPrint(str(ticList))
 
-# convert to dbf
-ticdbf = arcpy.CreateScratchName("xxx", ".dbf", "", scratch)
-print(ticdbf)
-ticdbf = os.path.basename(ticdbf)
-print(ticdbf)
-arcpy.TableToTable_conversion(os.path.join(scratch, "xxxtics.csv"), scratch, ticdbf)
+if outgdb[-4:] == ".gdb":
+    arcpy.management.CreateFeatureclass(outgdb, 'MapTics', "POINT", None, "DISABLED", "DISABLED", sr, '', 0, 0, 0, '')
+    arcpy.management.AddField(outgdb + '\MapTics', "ID", "LONG", None, None, None, "ID", "NULLABLE", "NON_REQUIRED", '')
+    # add attributes
+    for fld in ["Easting", "Northing"]:
+        arcpy.AddField_management(outgdb + '\MapTics', fld, "DOUBLE")
+    for fld in ["LatDMS", "LongDMS"]:
+        arcpy.AddField_management(outgdb + '\MapTics', fld, "TEXT", "", "", 20)
+    cursor = arcpy.da.InsertCursor(outgdb + '\MapTics', ["SHAPE@","ID","LatDMS","LongDMS","Easting","Northing"])    
+elif outgdb[-4:] == ".sde":
+    edit = arcpy.da.Editor(outgdb)
+    edit.startEditing(False, True)
+    cursor = arcpy.da.InsertCursor(outgdb + '\\' + input_schema + '.' + 'MapTics', ["SHAPE@","ID","LatDMS","LongDMS","Easting","Northing","MapName"])
+    edit.startOperation()
+    
+for tic in ticList:
+    point = arcpy.Point(tic[1], tic[2])
+    point_geometry = arcpy.PointGeometry(point,xycs)
+    point_projected = point_geometry.projectAs(sr, geotransformation)
+    if outgdb[-4:] == ".gdb":
+        cursor.insertRow([point_projected, tic[0], ddToDmsString(tic[1]), ddToDmsString(tic[2]), point_projected.firstPoint.X, point_projected.firstPoint.Y])
+    if outgdb[-4:] == ".sde":
+        cursor.insertRow([point_projected, tic[0], ddToDmsString(tic[1]), ddToDmsString(tic[2]), point_projected.firstPoint.X, point_projected.firstPoint.Y, input_mapname])
+        
+if outgdb[-4:] == ".sde":
+    edit.stopOperation()
+    edit.stopEditing(True)
 
-# make XY event layer from table
-arcpy.MakeXYEventLayer_management(
-    os.path.join(scratch, ticdbf), "LONGITUDE", "LATITUDE", "ticlayer", xycs
-)
 
-# copy to point featureclass
-arcpy.FeatureToPoint_management("ticlayer", "xxtics")
 
-# project to correct coordinate system
-arcpy.Project_management("xxtics", "tics", outSpRef, geotransformation, xycs)
+#-------------------validation script----------
+class ToolValidator:
+  # Class to add custom behavior and properties to the tool and tool parameters.
 
-# add attributes
-for fld in ["Easting", "Northing"]:
-    arcpy.AddField_management("tics", fld, "DOUBLE")
-for fld in ["LatDMS", "LongDMS"]:
-    arcpy.AddField_management("tics", fld, "TEXT", "", "", 20)
-arcpy.AddXY_management("tics")
+    def __init__(self):
+        # set self.params for use in other function
+        self.params = arcpy.GetParameterInfo()
 
-# calc Easting = Point_X, Northing = Point_Y
-arcpy.CalculateField_management("tics", "Easting", "!Point_X!", "PYTHON")
-arcpy.CalculateField_management("tics", "Northing", "!Point_Y!", "PYTHON")
+    def initializeParameters(self):
+        # Customize parameter properties. 
+        # This gets called when the tool is opened.
+        self.params[7].enabled = False
+        self.params[8].enabled = False           
+        return
 
-# create update cursor, cycle through tics, and add LatDMS and LongDMS
-addMsgAndPrint("  adding lat-long text strings")
-rows = arcpy.UpdateCursor("tics")
-for row in rows:
-    row.LatDMS = ddToDmsString(row.LATITUDE)
-    row.LongDMS = ddToDmsString(row.LONGITUDE)
-    rows.updateRow(row)
-del row
-del rows
+    def updateParameters(self):
+        # Modify parameter values and properties.
+        # This gets called each time a parameter is modified, before 
+        # standard validation.
+        gdb = self.params[6].valueAsText
+        if gdb[-4:] == '.gdb':
+            self.params[7].enabled = False
+            self.params[8].enabled = False
+        elif gdb[-4:] == '.sde':
+            self.params[7].enabled = True    
+            self.params[8].enabled = True 
 
-# delete csv files, dbf files, and preliminary featureclasses
-addMsgAndPrint("  cleaning up scratch workspace")
-for xx in [
-    boxdbf,
-    boxdbf + ".xml",
-    ticdbf,
-    ticdbf + ".xml",
-]:  # ,'xxxbox.csv','xxxtics.csv']:
-    os.remove(os.path.join(scratch, xx))
-addMsgAndPrint("  deleting temporary feature classes")
-arcpy.Delete_management("xxtics")
-arcpy.Delete_management("xxMapOutline")
+            schemaList = []
+            arcpy.env.workspace = gdb  
+            datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
+            for dataset in datasets:
+                schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
+            self.params[7].filter.list = sorted(set(schemaList))	
 
-# sys.exit()   # force exit with failure
+            if self.params[7].value is not None:
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[7].value + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[8].filter.list = sorted(set(mapList))         
+        return
+
+    def updateMessages(self):
+        # Customize messages for the parameters.
+        # This gets called after standard validation.
+        return
+
+    # def isLicensed(self):
+    #     # set tool isLicensed.
+    # return True

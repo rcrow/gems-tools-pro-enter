@@ -4,7 +4,7 @@
 # Used as source script tool:  GeMS_Toolbox...Create and Edit...MapName Definition Query
 #
 # Adapted from Maine Geological Survey SetDefinitionQuery tool
-# July 2013 - Chris Halsted, Maine Geological Survey
+# July 2013 - Christian Halsted, Maine Geological Survey
 # March 2021 - updated to work with ArcPro and Python 3
 # September 2023 - migrated to work with GeMS Enterprise Geodatabase
 # ---------------------------------------------------------------------------
@@ -161,43 +161,46 @@ def SetDefQuery(mapname,clear,draw):
 
   
 if __name__ == '__main__':
-    mapname = arcpy.GetParameterAsText(1) #sys.argv[1]   #Map Name
-    clear = arcpy.GetParameterAsText(2) #sys.argv[2]   #Clear Option
-    draw = arcpy.GetParameterAsText(3) #sys.argv[3]   #Set DrawOnMap to Yes
+    mapname = arcpy.GetParameterAsText(2)   #Map Name
+    clear = arcpy.GetParameterAsText(3)    #Clear Option
+    draw = arcpy.GetParameterAsText(4)    #Set DrawOnMap to Yes
     SetDefQuery(mapname,clear,draw)
     
  
 #-------------------validation script----------
 import arcpy
-class ToolValidator(object):
-  """Class for validating a tool's parameter values and controlling
-  the behavior of the tool's dialog."""
+class ToolValidator:
+  # Class to add custom behavior and properties to the tool and tool parameters.
 
-  def __init__(self):
-    """Setup arcpy and the list of tool parameters."""
-    self.params = arcpy.GetParameterInfo()
+    def __init__(self):
+        # set self.params for use in other function
+        self.params = arcpy.GetParameterInfo()
 
-  def initializeParameters(self):
-    """Refine the properties of a tool's parameters.  This method is
-    called when the tool is opened."""
-    schemaList = []
-    for row in arcpy.da.SearchCursor(r'C:\GeMS_Coop\GeMS_Data_LOCAL.sde\GeMS_Data.dbo.GeMS_Schemas',['SCHEMA']):
-      schemaList.append(row[0])
-    self.params[1].filter.list = sorted(set(schemaList))
-    return
+    def initializeParameters(self):
+        # Customize parameter properties. 
+        # This gets called when the tool is opened.
+        return
 
-  def updateParameters(self):
-    """Modify the values and properties of parameters before internal
-    validation is performed.  This method is called whenever a parameter
-    has been changed."""
-    mapList = []
-    #for row in arcpy.da.SearchCursor(r'C:\GeMS_Coop\GeMS_Data_LOCAL.sde\GeMS_Data.dbo.GeMS_Domain_MapNames',['code'],'"Schema" = ' + "'" + self.params[0].value + "'"):
-    for row in arcpy.da.SearchCursor(r'C:\GeMS_Coop\GeMS_Data_LOCAL.sde\GeMS_Data.' + self.params[0].value + '.Domain_MapName',['code']):
-      mapList.append(row[0])
-    self.params[1].filter.list = sorted(set(mapList))    
-    return
+    def updateParameters(self):
+        schemaList = []
+        arcpy.env.workspace = str(self.params[0].value)  
+        datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
+        for dataset in datasets:
+            schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
+        self.params[1].filter.list = sorted(set(schemaList))	
+        
+        if self.params[1].value is not None:
+            mapList = []
+            for row in arcpy.da.SearchCursor(str(self.params[0].value) + '\\' + self.params[1].value + '.Domain_MapName',['code']):
+                mapList.append(row[0])
+            self.params[2].filter.list = sorted(set(mapList))          
+        return
 
-  def updateMessages(self):
-    """Modify the messages created by internal validation for each tool
-    parameter.  This method is called after internal validation."""
-    return
+    def updateMessages(self):
+        # Customize messages for the parameters.
+        # This gets called after standard validation.
+        return
+
+    def isLicensed(self):
+        # set tool isLicensed.
+        return True

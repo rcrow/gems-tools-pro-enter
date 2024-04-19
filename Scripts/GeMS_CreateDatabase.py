@@ -41,7 +41,7 @@ versionString = "GeMS_CreateDatabase.py, version of 10/5/23"
 rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_CreateDatabase.py"
 checkVersion(versionString, rawurl, "gems-tools-pro")
 
-debug = True
+debug = False
 
 default = "#"
 dbUser = ''
@@ -544,6 +544,12 @@ def main(thisDB, coordSystem, nCrossSections):
         # for tbl in arcpy.ListTables():
             # if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
                 # arcpy.AssignDomainToField_management(tbl,"MapScale","MapScaleValues") 
+                
+        # add the Domain_MapName view to the EGDB for use by the MapName Domain Update tool
+        if not arcpy.Exists(thisDB + "/" + dbNameUserPrefix + 'Domain_MapName'):
+            arcpy.management.CreateDatabaseView(db, "Domain_MapName", "SELECT TOP 5000 code, [description] FROM (SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "MAPUNITPOLYS_evw GROUP BY MapName UNION SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "CONTACTSANDFAULTS_evw GROUP BY MapName UNION SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "STATIONS_evw GROUP BY MapName UNION SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "GEOLOGICPOINTS_evw GROUP BY MapName) t ORDER BY code")
+
+        
     # if cartoReps, add cartographic representations to all feature classes
     # trackEdits, add editor tracking to all feature classes and tables
     if cartoReps or trackEdits:

@@ -68,7 +68,7 @@ style_dict = {
     "dmuheading4": "DMU-Heading4",
     "heading4": "DMU-Heading4",
     "dmuheading5": "DMU-Heading5",
-    "heading5": "DMU-Heading5",
+    "heading5": "DMU-Heading5",   
     "dmuunit11stafterheading": "DMUUnit11stafterheading",
     "1stunitafterheading": "DMUUnit11stafterheading",
     "dmuunit1": "DMUUnit1",
@@ -187,20 +187,28 @@ def clean(val):
     return val.lower()
 
 
-gdb = sys.argv[1]
-dmu = Path(gdb) / "DescriptionOfMapUnits"
-outdir = Path(sys.argv[2])
-outname = sys.argv[3]
+gdb = arcpy.GetParameterAsText(0)
+if gdb[-4:]=='.gdb':
+    #dmu = Path(gdb) / "DescriptionOfMapUnits"
+    dmu = os.path.join(gdb, 'DescriptionOfMapUnits')
+if gdb[-4:]=='.sde':
+    #dmu = Path(gdb) / arcpy.GetParameterAsText(1) + ".DescriptionOfMapUnits"
+    dmu = os.path.join(gdb, arcpy.GetParameterAsText(1) + '.DescriptionOfMapUnits')
+addMsgAndPrint(dmu)
+
+mapname = arcpy.GetParameterAsText(2)
+outdir = Path(arcpy.GetParameterAsText(3))
+outname = arcpy.GetParameterAsText(4)
 if outname.lower()[-5:] != ".docx":
     outname = "{}.docx".format(outname)
 outDMUdocx = str(outdir.joinpath(outname))
 
-if sys.argv[4] == "true":
+if arcpy.GetParameterAsText(5) == "true":
     useMapUnitForUnitLabl = True
 else:
     useMapUnitForUnitLabl = False
 
-if sys.argv[5] == "true":  # LMU only
+if arcpy.GetParameterAsText(6) == "true":  # LMU only
     isLMU = True
 else:
     isLMU = False
@@ -240,7 +248,11 @@ fields = [
 ]
 #          0          1        2       3      4              5                 6
 sqlclause = (None, "ORDER by HierarchyKey ASC")
-dmuRows = arcpy.da.SearchCursor(str(dmu), fields, sql_clause=sqlclause)
+if mapname is not None:
+    whereclause = "MapName = '" + mapname + "'"
+else:
+    whereclause = "*"
+dmuRows = arcpy.da.SearchCursor(str(dmu), fields, where_clause=whereclause, sql_clause=sqlclause)
 
 # look for the case where we are making just a list of map units regardless of what
 # the title row of the table may be.
@@ -343,10 +355,88 @@ while row:
 
 addMsgAndPrint("    finished appending paragraphs")
 
-if sys.argv[4] == 3:
+if arcpy.GetParameterAsText(5) == 3:
     print("Null")
     pass
 
 # Save our document
 addMsgAndPrint("Saving to file {}".format(outDMUdocx))
 document.save(outDMUdocx)
+
+
+
+#-------------------validation script----------
+import os
+
+class ToolValidator:
+  """Class for validating a tool's parameter values and controlling
+  the behavior of the tool's dialog."""
+
+  def __init__(self):
+    """Setup arcpy and the list of tool parameters."""
+    import arcpy
+    self.params = arcpy.GetParameterInfo()
+
+  def initializeParameters(self):
+    """Refine the properties of a tool's parameters.  This method is
+    called when the tool is opened."""
+    self.params[1].enabled = False
+    self.params[2].enabled = False    
+    return
+
+  def updateParameters(self):
+    """Modify the values and properties of parameters before internal
+    validation is performed.  This method is called whenever a parmater
+    has been changed."""
+    gdb = self.params[0].valueAsText
+    if gdb[-4:] == '.gdb':
+        self.params[1].enabled = False
+        self.params[2].enabled = False
+    elif gdb[-4:] == '.sde':
+        self.params[1].enabled = True    
+        self.params[2].enabled = True 
+
+        schemaList = []
+        arcpy.env.workspace = gdb  
+        datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
+        for dataset in datasets:
+            schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
+        self.params[1].filter.list = sorted(set(schemaList))	
+
+        if self.params[1].value is not None:
+            mapList = []
+            for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[1].value + '.Domain_MapName',['code']):
+                mapList.append(row[0])
+            self.params[2].filter.list = sorted(set(mapList))         
+    return
+
+  def updateMessages(self):
+    """Modify the messages created by internal validation for each tool
+    parameter.  This method is called after internal validation."""
+    gdb = self.params[0].valueAsText
+    if gdb[-4:] == '.gdb':
+        dmu = os.path.join(gdb, 'DescriptionOfMapUnits')
+        if not arcpy.Exists(dmu):
+            m = "This geodatabase does not have a DescriptionOfMapUnits table"
+            self.params[0].setErrorMessage(m)
+        else:
+            required = set(['MapUnit', 'Label', 'Name', 'Age', 'Description', 'ParagraphStyle', 'HierarchyKey'])
+            fields = set([f.name.lower() for f in arcpy.ListFields(dmu)])
+            missing = [n for n in required if n.lower() not in fields]
+            if len(missing) > 0:
+                m = f"Field(s) {', '.join(missing)} missing from DescriptionOfMapUnits"
+                self.params[0].setErrorMessage(m)        
+    elif gdb[-4:] == '.sde' and self.params[1].valueAsText is not None:
+        dbschema = self.params[1].valueAsText
+        dmu = os.path.join(gdb, dbschema + '.DescriptionOfMapUnits')
+        if not arcpy.Exists(dmu):
+            m = "This geodatabase does not have a DescriptionOfMapUnits table"
+            self.params[0].setErrorMessage(m)
+        else:
+            required = set(['MapUnit', 'Label', 'Name', 'Age', 'Description', 'ParagraphStyle', 'HierarchyKey'])
+            fields = set([f.name.lower() for f in arcpy.ListFields(dmu)])
+            missing = [n for n in required if n.lower() not in fields]
+            if len(missing) > 0:
+                m = f"Field(s) {', '.join(missing)} missing from DescriptionOfMapUnits"
+                self.params[0].setErrorMessage(m)         
+    return

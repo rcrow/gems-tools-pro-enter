@@ -60,20 +60,22 @@ def sql_list(var):
         return f"({n})"
 
 
-fds = sys.argv[1]
-gdb = Path(fds).parent
+fds = arcpy.GetParameterAsText(0)
+gdb = str(Path(fds).parent)
 save_mup = False
-if sys.argv[2].lower() == "true":
+if arcpy.GetParameterAsText(1).lower() == "true":
     save_mup = True
 
 try:
-    label_points = arcpy.da.Describe(sys.argv[3])["catalogPath"]
+    label_points = arcpy.da.Describe(arcpy.GetParameterAsText(2))["catalogPath"]
 except:
     label_points = ""
 
 simple_mode = True
-if sys.argv[4].lower() in ["false", "no"]:
+if arcpy.GetParameterAsText(3).lower() in ["false", "no"]:
     simple_mode = False
+
+input_mapname = arcpy.GetParameterAsText(4)
 
 # get caf, mup, name_token
 # dictionary
@@ -89,29 +91,29 @@ caf = [
 short_caf = Path(caf).name
 
 # MapUnitPolys
-mup_dict = [
-    child for child in children if child["baseName"].lower().endswith("mapunitpolys")
-][0]
+mup_dict = [child for child in children if child["baseName"].lower().endswith("mapunitpolys")][0]
 mup = mup_dict["catalogPath"]
 mup_fields = mup_dict["fields"]
-short_mup = Path(mup).name
+short_mup = str(Path(mup).name).replace('.','_')
 
-# feature dataset name token
-fd_name = fd_dict["baseName"]
-if fd_name.lower().endswith("correlationofmapunits"):
-    name_token = "CMU"
-else:
-    name_token = fd_name
+# # feature dataset name token
+# fd_name = fd_dict["baseName"]
+# if fd_name.lower().endswith("correlationofmapunits"):
+    # name_token = "CMU"
+# else:
+    # name_token = fd_name
 
 # save a copy of MapUnitPolys
 ## saving a copy also saves a copy of any relationship classes
-if save_mup:
+if save_mup and '.gdb' in gdb:
     arcpy.AddMessage("Saving MapUnitPolys")
     arcpy.management.Copy(mup, guf.getSaveName(mup))
 
 # make selection set without concealed lines
 fld = arcpy.AddFieldDelimiters(caf, "IsConcealed")
 where = f"LOWER({fld}) NOT IN ('y', 'yes')"
+if '.sde' in gdb:
+    where = where + " AND MapName = '" + input_mapname + "'"
 arcpy.AddMessage("Selecting all non-concealed lines")
 contacts = arcpy.management.SelectLayerByAttribute(caf, where_clause=where)
 
@@ -135,13 +137,17 @@ if simple_mode:
 
     # truncate MapUnitPolys
     arcpy.AddMessage(f"Emptying {short_mup}")
-    arcpy.management.TruncateTable(mup)
+    if '.gdb' in gdb:
+        arcpy.management.TruncateTable(mup)
+    elif '.sde' in gdb:
+        arcpy.management.MakeFeatureLayer(mup, 'oldMUPs', "MapName = '" + input_mapname + "'")
+        arcpy.management.DeleteRows('oldMUPs')
 
     # append to the now empty MapUnitPolys
     arcpy.AddMessage(f"Adding features from memory to {mup}")
     arcpy.management.Append(new_polys, mup, "NO_TEST")
 
-else:
+elif simple_mode == False and '.gdb' in gdb:
     arcpy.AddMessage("Continuing in reporting mode")
     # in reporting mode
     # 1) turn map unit polygons into points - adds ORIG_FID
@@ -355,3 +361,92 @@ else:
             active_map.addLayerToGroup(group, sandwiched_lines)
     else:
         arcpy.AddMessage("No errors or changes to report")
+        
+elif simple_mode == False and '.sde' in gdb:
+    arcpy.AddMessage("Error reporting mode not currently configured for enterprise geodatabases")
+
+
+
+
+#-------------------validation script----------
+import arcpy
+import glob
+from pathlib import Path
+
+def editSessionActive(gdb):
+    if glob.glob(os.path.join(gdb, '*.ed.lock')):
+        edit_session = True
+    else:
+        edit_session = False
+    return edit_session
+
+class ToolValidator(object):
+    """Class for validating a tool's parameter values and controlling
+    the behavior of the tool's dialog."""
+
+    def __init__(self):
+        """Setup arcpy and the list of tool parameters."""
+        self.params = arcpy.GetParameterInfo()
+
+    def initializeParameters(self):
+        """Refine the properties of a tool's parameters.  This method is
+        called when the tool is opened."""
+        self.params[4].enabled = False 
+        return
+
+    def updateParameters(self):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+        gdb = os.path.dirname(self.params[0].valueAsText)
+        if gdb[-4:] == '.gdb':
+            self.params[4].enabled = False
+        elif gdb[-4:] == '.sde':
+            self.params[4].enabled = True    
+
+            db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
+            mapList = []
+            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                mapList.append(row[0])
+            self.params[4].filter.list = sorted(set(mapList))  
+        return
+
+    def updateMessages(self):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        if self.params[0].altered:
+            fds = Path(self.params[0].valueAsText)
+            gdb = str(fds.parent)
+            if editSessionActive(str(gdb)):
+                self.params[0].setErrorMessage('Geodatabase is being edited. Save edits and close edit session before running this tool')
+                
+           # get describe dictionary of the feature dataset
+            desc = arcpy.da.Describe(str(fds))
+            children = desc['children']
+            
+            # look for ContactsAndFaults and MapUnitPolys
+            try:
+                caf = [child for child in children if child['baseName'].lower().endswith('contactsandfaults')][0]
+            except:
+                self.params[0].setErrorMessage('Feature dataset must contain a ContactsAndFaults feature class')
+     
+            try:
+                mup = [child for child in children if child['baseName'].lower().endswith('mapunitpolys')][0]
+            except:
+                self.params[0].setErrorMessage('Feature dataset must contain a MapUnitPolys feature class')    
+            
+            # look for a Topology with MapUnitPolys in it
+            if gdb[-4:] == '.gdb':
+                for child in children:
+                    if child['datasetType'] == 'Topology':
+                        for n in child['featureClassNames']:
+                            if n.lower().endswith('mapunitpolys'):
+                                self.params[0].setErrorMessage(f'Remove {n} from topology or delete topology entirely before running this tool')
+                
+        # check for MapUnit in labels feature class                        
+        if self.params[2].altered:
+            labels = self.params[2].valueAsText
+            flds = [f.name.lower() for f in arcpy.ListFields(labels)]
+            if not 'mapunit' in flds:
+                self.params[2].setErrorMessage("Label points must contain a 'MapUnit' field")
+        return

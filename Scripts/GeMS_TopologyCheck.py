@@ -254,10 +254,10 @@ def makeNodeFCXY(fd, fc):
     return fdfc
 
 
-def buildHKeyDict(DMU):
+def buildHKeyDict(DMU, whereClause):
     hKeyDict = {}
     hKeyUnits = []
-    with arcpy.da.SearchCursor(DMU, ["MapUnit", "HierarchyKey"]) as cursor:
+    with arcpy.da.SearchCursor(DMU, ["MapUnit", "HierarchyKey"], where_clause = whereClause) as cursor:
         for row in cursor:
             hKeyDict[row[0]] = row[1]
             hKeyUnits.append([row[1], row[0]])
@@ -853,7 +853,7 @@ def findDupPts(inFds, outFds):
             ptFcs2.append(fc)
     for fc in ptFcs2:
         addMsgAndPrint("  finding duplicate records in " + fc)
-        newTb = os.path.dirname(outFds) + "/dups_" + fc
+        newTb = os.path.dirname(outFds) + "/dups_" + fc.replace('.','_')
         testAndDelete(newTb)
         dupFields = ["Shape"]
         allFields1 = arcpy.ListFields(fc)
@@ -864,9 +864,11 @@ def findDupPts(inFds, outFds):
             if aF in allFields:
                 dupFields.append(aF)
         addMsgAndPrint("    fields to be compared: " + str(dupFields))
-        arcpy.FindIdentical_management(
-            inFds + "/" + fc, newTb, dupFields, "", "", "ONLY_DUPLICATES"
-        )
+        if '.gdb' in inFds:
+            arcpy.FindIdentical_management(inFds + "/" + fc, newTb, dupFields, "", "", "ONLY_DUPLICATES")
+        elif '.sde' in inFds:
+            arcpy.management.MakeFeatureLayer(inFds + "/" + fc, 'in_layer_' + fc.replace('.','_'), "MapName = '" + input_mapname + "'")
+            arcpy.FindIdentical_management('in_layer_' + fc.replace('.','_'), newTb, dupFields, "", "", "ONLY_DUPLICATES")
         addMsgAndPrint("    dups_" + fc + ": " + str(numberOfRows(newTb)) + " rows")
         if numberOfRows(newTb) == 0:
             testAndDelete(newTb)
@@ -879,7 +881,7 @@ def findDupPts(inFds, outFds):
             )
 
     return duplicatePoints
-
+        
 
 def esriTopology(outFds, caf, mup):
     addMsgAndPrint("Checking topology of " + os.path.basename(outFds))
@@ -948,12 +950,17 @@ def esriTopology(outFds, caf, mup):
 
 addMsgAndPrint(versionString)
 #### get inputs
-inFds = sys.argv[1]
-hKeyTestValue = sys.argv[2]
+inFds = arcpy.GetParameterAsText(0)
+hKeyTestValue = arcpy.GetParameterAsText(1)
+input_mapname = arcpy.GetParameterAsText(2)
 
 inGdb = os.path.dirname(inFds)
 
-outWksp = inGdb[:-4] + "_Topology"
+if inGdb[-4:] == '.gdb':
+    outWksp = inGdb[:-4] + "_Topology"
+elif inGdb[-4:] == '.sde':
+    outWksp = os.path.dirname(inGdb) + '\\' + input_mapname + "_Topology"
+    
 if not os.path.exists(outWksp):
     addMsgAndPrint("Making directory " + outWksp)
     os.mkdir(outWksp)
@@ -963,14 +970,20 @@ else:
         forceExit()
 
 inCaf = getCaf(inFds)
-fdsToken = os.path.basename(inCaf).replace("ContactsAndFaults", "")
+fdsToken = os.path.basename(inCaf).replace("ContactsAndFaults", "").replace('.','_')
 inMup = inCaf.replace("ContactsAndFaults", "MapUnitPolys")
 zeroValue = 2 * arcpy.Describe(inCaf).spatialReference.XYTolerance
 # hKeyTestValue = '2'
 DMU = inGdb + "/DescriptionOfMapUnits"
-outGdbName = os.path.basename(inGdb)[:-4] + "_TopologyCheck.gdb"
+if inGdb[-4:] == '.gdb':
+    DMU = inGdb + "/DescriptionOfMapUnits"
+    outGdbName = os.path.basename(inGdb)[:-4] + "_TopologyCheck.gdb"
+elif inGdb[-4:] == '.sde':
+    input_schema = os.path.basename(inFds).split('.')[0] + '.' + os.path.basename(inFds).split('.')[1]
+    DMU = inGdb + "/" + input_schema + ".DescriptionOfMapUnits"
+    outGdbName = input_schema.replace('.','_') + '_' + input_mapname + "_TopologyCheck.gdb"
 outGdb = os.path.join(outWksp, outGdbName)
-outFdsName = os.path.basename(inFds)
+outFdsName = os.path.basename(inFds).replace('.','_')
 outFds = os.path.join(outGdb, outFdsName)
 addMsgAndPrint(" ")
 addMsgAndPrint(
@@ -983,7 +996,10 @@ addMsgAndPrint(
 addMsgAndPrint(" ")
 
 outHtml = open(os.path.join(outWksp, outFdsName + ".html"), "w")
-hKeyDict, sortedUnits = buildHKeyDict(DMU)
+if inGdb[-4:] == '.gdb':
+    hKeyDict, sortedUnits = buildHKeyDict(DMU, "OBJECTID > -1")
+elif inGdb[-4:] == '.sde':
+    hKeyDict, sortedUnits = buildHKeyDict(DMU, "MapName = '" + input_mapname + "'")
 
 ### copy inputs to new gdb/feature dataset
 if not arcpy.Exists(outWksp):
@@ -999,9 +1015,13 @@ for t in topologies:
     testAndDelete(t)
 
 for infc in (inCaf, inMup):
-    outfc = os.path.join(outFds, os.path.basename(infc))
+    outfc = os.path.join(outFds, os.path.basename(infc).replace('.','_'))
     testAndDelete(outfc)
-    arcpy.Copy_management(infc, outfc)
+    if inGdb[-4:] == '.gdb':
+        arcpy.Copy_management(infc, outfc)
+    elif inGdb[-4:] == '.sde':
+        arcpy.management.MakeFeatureLayer(infc, 'in_layer', "MapName = '" + input_mapname + "'")
+        arcpy.management.CopyFeatures('in_layer', outfc)    
     if infc == inCaf:
         caf = outfc
     else:
@@ -1168,3 +1188,46 @@ else:
 outHtml.write(htmlEnd)
 outHtml.close()
 addMsgAndPrint("DONE!")
+
+
+
+#-------------------validation script----------
+import arcpy, os
+class ToolValidator(object):
+    """Class for validating a tool's parameter values and controlling
+    the behavior of the tool's dialog."""
+
+    def __init__(self):
+        """Setup arcpy and the list of tool parameters."""
+        self.params = arcpy.GetParameterInfo()
+
+    def initializeParameters(self):
+        """Refine the properties of a tool's parameters.
+        This method is called when the tool is opened."""
+        self.params[2].enabled = False          
+        return
+
+    def updateParameters(self):
+        """Modify the values and properties of parameters before internal
+        validation is performed. This method is called whenever a parameter
+        has been changed."""
+        gdb = os.path.dirname(self.params[0].valueAsText)
+        if gdb[-4:] == '.gdb':
+            self.params[2].enabled = False
+        elif gdb[-4:] == '.sde':
+            self.params[2].enabled = True    
+
+            db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
+            mapList = []
+            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                mapList.append(row[0])
+            self.params[2].filter.list = sorted(set(mapList))              
+        return
+        
+    def updateMessages(self):
+        """Modify the messages created by internal validation for each tool
+        parameter. This method is called after internal validation."""
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True

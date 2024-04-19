@@ -85,9 +85,10 @@ def lessSignificantOP(fid1, fid2):
 #   minSeparation (in mm on map)
 #   maxPlotAtScale  = 500000
 
-inFc = sys.argv[1]
-minSeparation_mm = float(sys.argv[2])
-maxPlotAtScale = float(sys.argv[3])
+inFc = arcpy.GetParameterAsText(0)
+minSeparation_mm = float(arcpy.GetParameterAsText(1))
+maxPlotAtScale = float(arcpy.GetParameterAsText(2))
+input_mapname = arcpy.GetParameterAsText(3)
 
 addMsgAndPrint(versionString)
 
@@ -95,17 +96,25 @@ addMsgAndPrint(versionString)
 # inFc exists and has item PlotAtScale
 if not arcpy.Exists(inFc):
     forceExit()
-fields = arcpy.ListFields(inFc)
-fieldNames = []
-for field in fields:
-    fieldNames.append(field.name)
-if not "PlotAtScale" in fieldNames:
-    arcpy.AddField_management(inFc, "PlotAtScale", "FLOAT")
-    addMsgAndPrint("Adding field PlotAtScale to {}".format(inFc))
+if arcpy.Describe(inFc).shapeType != 'Point':
+    addMsgAndPrint("Feature class is not a Point type")
+    forceExit()
 
 gdb = os.path.dirname(inFc)
 if arcpy.Describe(gdb).dataType == "FeatureDataset":
     gdb = os.path.dirname(gdb)
+if '.gdb' in gdb:
+    inFcLayer = inFc
+elif '.sde' in gdb:
+    inFcLayer = arcpy.management.SelectLayerByAttribute(inFc, where_clause="MapName = '" + input_mapname + "'")
+    
+fields = arcpy.ListFields(inFcLayer)
+fieldNames = []
+for field in fields:
+    fieldNames.append(field.name)
+if not "PlotAtScale" in fieldNames:
+    arcpy.AddField_management(inFcLayer, "PlotAtScale", "FLOAT")
+    addMsgAndPrint("Adding field PlotAtScale to {}".format(inFcLayer))
 
 if os.path.basename(inFc) == "OrientationPoints":
     addMsgAndPrint("Populating OrientationPointsDicts")
@@ -114,19 +123,22 @@ if os.path.basename(inFc) == "OrientationPoints":
 else:
     isOP = False
 
-outTable = gdb + "/xxxPlotAtScales"
+if '.gdb' in gdb:
+    outTable = gdb + "/xxxPlotAtScales"
+elif '.sde' in gdb:
+    outTable = arcpy.env.scratchWorkspace + "/xxxPlotAtScales"    
 testAndDelete(outTable)
 mapUnits = "meters"
 minSeparationMapUnits = minSeparation_mm / 1000.0
 searchRadius = minSeparationMapUnits * maxPlotAtScale
-if not "meter" in arcpy.Describe(inFc).spatialReference.linearUnitName.lower():
+if not "meter" in arcpy.Describe(inFcLayer).spatialReference.linearUnitName.lower():
     # units are feet of some flavor
     mapUnits = "feet"
     searchRadius = searchRadius * 3.2808
     minSeparationMapUnits = minSeparationMapUnits * 3.2808
 addMsgAndPrint("Search radius is " + str(searchRadius) + " " + mapUnits)
 addMsgAndPrint("Building near table")
-arcpy.PointDistance_analysis(inFc, inFc, outTable, searchRadius)
+arcpy.PointDistance_analysis(inFcLayer, inFcLayer, outTable, searchRadius)
 
 inPoints = []
 outPointDict = {}
@@ -164,18 +176,67 @@ for i in range(0, len(inPoints)):
     addMsgAndPrint("      " + str(inPoints[i]))
 
 
-# attach plotScale values from outPoints to inFc
+# attach plotScale values from outPoints to inFcLayer
 addMsgAndPrint("Updating " + os.path.basename(inFc))
-with arcpy.da.Editor(gdb) as edit:
-    fields = ["OBJECTID", "PlotAtScale"]
-    with arcpy.da.UpdateCursor(inFc, fields) as cursor:
-        for row in cursor:
-            if row[0] in list(outPointDict.keys()):
-                row[1] = outPointDict[row[0]]
-            else:
-                row[1] = maxPlotAtScale
-            cursor.updateRow(row)
-
+edit = arcpy.da.Editor(gdb)
+edit.startEditing(False, True)
+edit.startOperation()
+fields = ["OBJECTID", "PlotAtScale"]
+with arcpy.da.UpdateCursor(inFcLayer, fields) as cursor:
+    for row in cursor:
+        if row[0] in list(outPointDict.keys()):
+            row[1] = outPointDict[row[0]]
+        else:
+            row[1] = maxPlotAtScale
+        cursor.updateRow(row)
+edit.stopOperation()
+edit.stopEditing(True)
+    
 # get rid of xxxPlotAtScales
 addMsgAndPrint("Deleting " + outTable)
 testAndDelete(outTable)
+
+
+
+
+
+#-------------------validation script----------
+class ToolValidator:
+  # Class to add custom behavior and properties to the tool and tool parameters.
+
+    def __init__(self):
+        # set self.params for use in other function
+        self.params = arcpy.GetParameterInfo()
+
+    def initializeParameters(self):
+        # Customize parameter properties. 
+        # This gets called when the tool is opened.
+        self.params[3].enabled = False 
+        return
+
+    def updateParameters(self):
+        # Modify parameter values and properties.
+        # This gets called each time a parameter is modified, before 
+        # standard validation.
+        fds = os.path.dirname(self.params[0].valueAsText)
+        gdb = os.path.dirname(fds)
+        if gdb[-4:] == '.gdb':
+            self.params[3].enabled = False
+        elif gdb[-4:] == '.sde':
+            self.params[3].enabled = True    
+
+            db_schema = os.path.basename(fds).split('.')[0] + '.' + os.path.basename(fds).split('.')[1]
+            mapList = []
+            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                mapList.append(row[0])
+            self.params[3].filter.list = sorted(set(mapList))          
+        return
+
+    def updateMessages(self):
+        # Customize messages for the parameters.
+        # This gets called after standard validation.
+        return
+
+    # def isLicensed(self):
+    #     # set tool isLicensed.
+    # return True

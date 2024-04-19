@@ -421,24 +421,6 @@ DefaultExIDConfidenceValues = [
     ],
 ]
 
-# #---7/25/2023 CHH, map type and scale domain lists-------
-# MapTypeValues = [
-    # "Bedrock", 
-    # "Surficial"
-# ]
-# MapScaleValues = [
-    # "24000",
-    # "100000",
-    # "250000",
-    # "500000"
-# ]
-MapNameValues = [
-    "augusta",
-    "beaver-pond-se",
-    "camden",
-    "west-rockport"
-]
-#---------------------------------------------                                                                                                       
 
 enumeratedValueDomainFieldList = [
     "Type",
@@ -643,7 +625,24 @@ req_source_ids = [
     "OrientationSourceID",
 ]
 
-
+# #---7/25/2023 CHH, map type and scale domain lists-------------------------------
+# MapTypeValues = [
+    # "Bedrock", 
+    # "Surficial"
+# ]
+# MapScaleValues = [
+    # "24000",
+    # "100000",
+    # "250000",
+    # "500000"
+# ]
+MapNameValues = [
+    "augusta",
+    "beaver-pond-se",
+    "camden",
+    "west-rockport"
+]
+ 
 #---7/25/2023 CHH, fields needed in each entity for multimap enterprise geodatabase
 multimap_fields = [
     ["MapName", "String", "NoNulls", 100],
@@ -651,6 +650,7 @@ multimap_fields = [
     # ["MapScale", "String", "NoNulls", 12]
 ]
 #----------------------------------------------------------------------------------                                                                              
+
 required_geologic_map_feature_classes = ["ContactsAndFaults", "MapUnitPolys"]
 
 

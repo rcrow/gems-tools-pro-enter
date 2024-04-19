@@ -395,6 +395,13 @@ if ".xlsx" in dmu or ".xls" in dmu:
 # get parent directory
 dmu_home = os.path.dirname(dmu)
 # figure out what the file format is
+if os.path.splitext(dmu_home)[1] == ".sde":
+    arcpy.AddMessage('running sde')
+    out_name = input_mapname
+    dmu_home = arcpy.env.scratchWorkspace
+    arcpy.management.MakeTableView(dmu, 'dmuMapName', "MapName = '" + input_mapname + "'")
+    dmu_df = frame_it('dmuMapName', "gdb")
+    
 if os.path.splitext(dmu_home)[1] == ".gdb":
     out_name = os.path.basename(dmu_home)[:-4]
     dmu_home = os.path.dirname(dmu_home)
@@ -662,3 +669,50 @@ df.to_excel(xl_path, freeze_panes=(2, 0), index=False, engine="openpyxl")
 format_excel(xl_path)
 if open_xl == True:
     os.startfile(xl_path)
+
+
+
+
+
+
+import arcpy
+class ToolValidator(object):
+    """Class for validating a tool's parameter values and controlling
+    the behavior of the tool's dialog."""
+
+    def __init__(self):
+        """Setup arcpy and the list of tool parameters."""
+        self.params = arcpy.GetParameterInfo()
+
+    def initializeParameters(self):
+        """Refine the properties of a tool's parameters.
+        This method is called when the tool is opened."""
+        self.params[3].enabled = False
+        return
+
+    def updateParameters(self):
+        """Modify the values and properties of parameters before internal
+        validation is performed. This method is called whenever a parameter
+        has been changed."""
+        gdb = os.path.dirname(self.params[0].valueAsText)
+        if gdb[-4:] == '.gdb':
+            self.params[3].enabled = False
+        elif gdb[-4:] == '.sde':
+            self.params[3].enabled = True    
+
+            db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
+            mapList = []
+            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                mapList.append(row[0])
+            self.params[3].filter.list = sorted(set(mapList))         
+        return        
+
+    def updateMessages(self):
+        """Modify the messages created by internal validation for each tool
+        parameter. This method is called after internal validation."""
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+        
+        

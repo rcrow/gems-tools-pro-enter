@@ -401,10 +401,140 @@ if __name__ == "__main__":
     db = sys.argv[1]
     # gdb_items = sys.argv[2]
     value_table = arcpy.GetParameter(1)
-    if db[-4:]=='.sde':
+    if getGDBType(db) == 'EGDB':
         desc = arcpy.Describe(db)
         cp = desc.connectionProperties
         dbUser = cp.user
         dbName = cp.database
         dbNameUserPrefix = dbName + '.' + dbUser + '.'                                      
     process(db, value_table)
+
+
+
+
+
+#-------------------validation script----------
+import sys
+from pathlib import Path
+parent = Path(__file__).parent
+scripts = parent / 'scripts'
+sys.path.append(str(scripts))
+import GeMS_Definition as gdef
+import GeMS_utilityFunctions as guf
+
+def build_dict(gdb):
+    import os
+    gdb_dict = {}   
+    arcpy.env.workspace = gdb
+    datasets = arcpy.ListDatasets(feature_type='feature')
+    datasets = [''] + datasets if datasets is not None else []
+
+    for ds in datasets:
+        for fc in arcpy.ListFeatureClasses(feature_dataset=ds):
+            path = os.path.join(arcpy.env.workspace, ds, fc)
+            gdb_dict[fc] = path
+    for tbl in arcpy.ListTables():
+        path = os.path.join(arcpy.env.workspace, tbl)
+        gdb_dict[tbl] = path
+    return gdb_dict
+
+class ToolValidator:
+  # Class to add custom behavior and properties to the tool and tool parameters.
+    
+    def __init__(self):
+        # set self.params for use in other function
+        self.params = arcpy.GetParameterInfo()
+        tables = list(gdef.startDict.keys())
+        tables.sort()
+        self.params[1].filters[2].list = tables
+
+    def initializeParameters(self):
+        # Customize parameter properties. 
+        # This gets called when the tool is opened.
+        self.params[2].enabled = False
+        return
+
+    def updateParameters(self):
+        # Modify parameter values and properties.
+        # This gets called each time a parameter is modified, before 
+        # standard validation.  
+        gems_fds = {'CorrelationOfMapUnits', 'CrossSection', 'GeologicMap'}
+        if not self.params[0].hasBeenValidated:  
+            if self.params[0].value:      
+                gdb = self.params[0].valueAsText
+                if arcpy.Exists(gdb):
+                    if gdb.endswith(".gdb") or gdb.endswith(".sde") or gdb.endswith(".gpkg"):
+                        # store a dictionary of fc:fc_path from the gdb in the 
+                        # parameter 2 text box (enabled = False in initializeParameters
+                        gdb_path = Path(gdb)
+                        gdb_dict = build_dict(str(gdb_path))   
+                        self.params[2].value = str(gdb_dict)
+                    if gdb.endswith(".gdb") or gdb.endswith(".sde"):
+                        arcpy.env.workspace = self.params[0].value
+                        fds = set(arcpy.ListDatasets(feature_type='Feature'))
+                        col_fds = list(fds.union(gems_fds))
+                        col_fds.sort()
+                        self.params[1].filters[0].list = col_fds
+            else:
+                self.params[2].value = None
+    
+        if self.params[1].value and not self.params[1].hasBeenValidated:
+            tab_vals = self.params[1].values
+                    
+            for row in tab_vals:
+                fd = row[0]
+                arcpy.env.workspace = self.params[0].value
+                if fd in arcpy.ListDatasets(feature_type='Feature'):
+                    sr = arcpy.da.Describe(fd)['spatialReference']
+                    if sr.name == "Unknown":
+                        row[1] = None
+                    else:
+                        row[1] = sr.name
+                else:
+                    row[1] = row[1].name
+            self.params[1].values = tab_vals
+
+        return
+
+    def updateMessages(self):
+        # Customize messages for the parameters.
+        # This gets called after standard validation.
+    
+        if '00800' in self.params[1].message:
+            self.params[1].clearMessage()
+
+        if self.params[2].value and self.params[1].values:
+            if self.params[0].valueAsText.endswith(".gdb"):
+                gdb = Path(self.params[0].valueAsText)
+                val_dict = {}
+                
+                # retrieve the fc_dict dictionary from parameter 2 text box
+                gdb_dict = eval(self.params[2].valueAsText)
+                
+                # make a similar dictionary from the value table in parameter 1
+                val_tab = self.params[1].values 
+                for row in val_tab:
+                    fd = row[0]
+                    fc = row[2]
+                    if fc:
+                        val_dict[fc] = str(gdb / fd / fc)
+                        
+                if val_dict:
+                    for k in val_dict:
+                        if k in gdb_dict:
+                            if gdb_dict[k] != val_dict[k]:
+                                ws = Path(gdb_dict[k]).parent.stem
+                                self.params[1].setErrorMessage(
+                                  f"{k} already exists in workspace {ws} \n Add a prefix to customize the name"
+                                  )
+
+        return
+
+    # def isLicensed(self):
+    #     # set tool isLicensed.
+    # return True
+
+    # def postExecute(self):
+    #     # This method takes place after outputs are processed and
+    #     # added to the display.
+    # return

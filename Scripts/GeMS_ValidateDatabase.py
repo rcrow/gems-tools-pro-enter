@@ -1461,7 +1461,15 @@ def del_extra(db_dict, table, field, all_terms):
             if not row[0] in all_terms:
                 cursor.deleteRow()
 
-
+def runDBStoredProcedure(conn, sql):
+    egdb_conn = arcpy.ArcSDESQLExecute(conn)
+    try:
+        egdb_conn.execute(sql)
+    except Exception as err:
+        if err.args[0].find('-1019') == -1:
+            arcpy.AddError(err)   
+    del egdb_conn
+    
 ##############start here##################
 # get inputs
 def main(argv):
@@ -1476,6 +1484,14 @@ def main(argv):
     # val["db_path"] = gdb_path
     val["db_name"] = gdb_name
 
+    # if egdb then run stored procedure and exit script because metadata and topology not run on EGDBs with this tool
+    if guf.getGDBType(argv[1]) == 'EGDB':
+        ap("Validating enterprise geodatabase -  attribute data only")    
+        conn = argv[1]  #C:\GeMS_Coop\MGS_Data_LOCAL_GeMS_Bdrk24k.sde
+        strSQL = "EXEC uspGeMS_Validate_Database '" + argv[2].split('.')[1] + "','" + argv[3] + "' WITH RESULT SETS NONE"  
+        runDBStoredProcedure(conn,strSQL)
+        return
+    
     # bail early if we don't have a gdb or gpkg
     if gdb_path.suffix not in [".gdb", ".gpkg"]:
         ap("This tool only validates File Geodatabases or Geopackages.")
@@ -1486,11 +1502,11 @@ def main(argv):
         is_gpkg = True
     else:
         is_gpkg = False
-
+   
     # output folder
-    if 2 < args_len:
-        if Path(argv[2]).exists():
-            workdir = Path(argv[2])
+    if 4 < args_len:
+        if Path(argv[4]).exists():
+            workdir = Path(argv[4])
         else:
             workdir = gdb_path.parent / "validate"
             workdir.mkdir(exist_ok=True)
@@ -1501,18 +1517,16 @@ def main(argv):
 
     # path to metadata file
     metadata_file = None
-    if 3 < args_len:
-        if not argv[3] in ("#", ""):
-            if Path(argv[3]).suffix == ".xml" and Path(argv[3]).exists():
-                metadata_file = Path(argv[3])
+    if 5 < args_len:
+        if not argv[5] in ("#", ""):
+            if Path(argv[5]).suffix == ".xml" and Path(argv[5]).exists():
+                metadata_file = Path(argv[5])
             else:
-                ap(
-                    "Metadata not checked. File needs to be in XML format or could not be found."
-                )
+                ap("Metadata not checked. File needs to be in XML format or could not be found.")
 
     arc_md = False
-    if 4 < args_len:
-        arc_md = guf.eval_bool(argv[4])
+    if 6 < args_len:
+        arc_md = guf.eval_bool(argv[6])
         if arc_md:
             metadata_file = workdir / f"{gdb_name}_metadata.xml"
 
@@ -1528,14 +1542,14 @@ def main(argv):
 
     # use _ID field value instead of OBJECTID for reporting errors?
     global use_idfield
-    if 5 < args_len:
-        use_idfield = guf.eval_bool(argv[5])
+    if 7 < args_len:
+        use_idfield = guf.eval_bool(argv[7])
     else:
         use_idfield = False
 
     # skip topology?
-    if 6 < args_len:
-        skip_topology = guf.eval_bool(argv[6])
+    if 8 < args_len:
+        skip_topology = guf.eval_bool(argv[8])
         top_db = workdir / "Topology.gdb"
         if arcpy.Exists(str(top_db)):
             arcpy.Delete_management(str(top_db))
@@ -1544,15 +1558,15 @@ def main(argv):
     val["parameters"].append(f"Skip topology check: {skip_topology}")
 
     # refresh GeoMaterialDict?
-    if 7 < args_len:
-        refresh_gmd = guf.eval_bool(argv[7])
+    if 9 < args_len:
+        refresh_gmd = guf.eval_bool(argv[9])
     else:
         refresh_gmd = False
     val["parameters"].append(f"Refresh GeoMaterialDict: {refresh_gmd}")
 
     # delete extra rows in Glossary and Data Sources?
-    if 8 < args_len:
-        delete_extra = guf.eval_bool(argv[8])
+    if 10 < args_len:
+        delete_extra = guf.eval_bool(argv[10])
     else:
         delete_extra = False
     val["parameters"].append(
@@ -1560,15 +1574,15 @@ def main(argv):
     )
 
     # compact database?
-    if 9 < args_len:
-        compact_db = guf.eval_bool(argv[9])
+    if 11 < args_len:
+        compact_db = guf.eval_bool(argv[11])
     else:
         compact_db = False
     val["parameters"].append(f"Compact GDB: {compact_db}")
 
     # open html report when done?
-    if 10 < args_len:
-        open_report = guf.eval_bool(argv[10])
+    if 12 < args_len:
+        open_report = guf.eval_bool(argv[12])
     else:
         open_report = False
 
@@ -1579,6 +1593,7 @@ def main(argv):
 
     # make the database dictionary
     db_dict = guf.gdb_object_dict(str(gdb_path))
+    #ap(str(db_dict))
 
     # edit session?
     if guf.editSessionActive(gdb_path):
@@ -1973,3 +1988,106 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv)
+
+
+
+
+#-------------------validation script----------
+import os,glob
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
+
+def edit_session_active(gdb_path):
+    if glob.glob(os.path.join(gdb_path, '*.ed.lock')):
+        edit_session = True
+    else:
+        edit_session = False
+    return edit_session
+
+class ToolValidator:
+  # Class to add custom behavior and properties to the tool and tool parameters.
+
+    def __init__(self):
+        # set self.params for use in other function
+        self.params = arcpy.GetParameterInfo()
+
+    def initializeParameters(self):
+        # Customize parameter properties. 
+        # This gets called when the tool is opened.
+        self.params[1].enabled = False
+        self.params[2].enabled = False 
+        self.params[4].category = "Metadata"
+        self.params[5].category = "Metadata"
+        self.params[6].category = "Options"
+        self.params[7].category = "Options"
+        self.params[8].category = "Options"
+        self.params[9].category = "Options"
+        self.params[10].category = "Options"
+        return
+
+    def updateParameters(self):
+        # Modify parameter values and properties.
+        # This gets called each time a parameter is modified, before 
+        # standard validation.
+        gdb = self.params[0].valueAsText
+        if getGDBType(gdb) == 'FileGDB':
+            self.params[1].enabled = False
+            self.params[2].enabled = False
+        elif getGDBType(gdb) == 'EGDB':
+            self.params[1].enabled = True    
+            self.params[2].enabled = True 
+
+            schemaList = []
+            arcpy.env.workspace = gdb  
+            datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
+            for dataset in datasets:
+                schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
+            self.params[1].filter.list = sorted(set(schemaList))	
+
+            if self.params[1].value is not None:
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[1].value + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[2].filter.list = sorted(set(mapList)) 
+                
+        if gdb.endswith(".gpkg"):
+            self.params[5].enabled = False
+            self.params[5].value = False
+            self.params[4].enabled = True
+            self.params[9].enabled = False
+        else:
+            self.params[4].enabled = True
+            self.params[5].enabled = True
+            self.params[9].enabled = True
+            
+        embed = str(self.params[5].valueAsText)
+        if "true" in embed:
+            self.params[4].enabled = False
+        else:
+            self.params[4].enabled = True
+         
+        return
+
+    def updateMessages(self):
+        # Customize messages for the parameters.
+        # This gets called after standard validation.
+        gdb_path = self.params[0].valueAsText
+         
+        if edit_session_active(gdb_path):
+            self.params[0].setWarningMessage('Active edit session. Results may not reflect unsaved edits')
+            
+        md = self.params[4].valueAsText
+        if not md is None:
+            if not os.path.splitext(md)[1] == ".xml":
+                self.params[4].setErrorMessage("Metadata file must be in XML format")
+            if not os.path.exists(md):
+                self.params[4].setErrorMessage("Metadata file does not exist")
+        
+        return
+
+    # def isLicensed(self):
+    #     # set tool isLicensed.
+    # return True
+    
+    
+    

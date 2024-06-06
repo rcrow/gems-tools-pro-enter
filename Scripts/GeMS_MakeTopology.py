@@ -30,7 +30,7 @@ def buildCafMupTopology(inFds, um):
     if debug:
         addMsgAndPrint("nameToken=" + nameToken)
     #---8/4/2023 CHH, clears the nameToken of db.schema. text if run on EGDB dataset  
-    if '.sde' in inFds:
+    if getGDBType(inFds) == 'EGDB':
         thisDB = inFds[0:inFds.find('.sde')+4]
         desc = arcpy.Describe(thisDB)
         cp = desc.connectionProperties

@@ -216,6 +216,9 @@ if outgdb[-4:] == ".sde":
 
 
 #-------------------validation script----------
+import os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
 class ToolValidator:
   # Class to add custom behavior and properties to the tool and tool parameters.
 
@@ -235,10 +238,10 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.
         gdb = self.params[6].valueAsText
-        if gdb[-4:] == '.gdb':
+        if getGDBType(gdb) == 'FileGDB':
             self.params[7].enabled = False
             self.params[8].enabled = False
-        elif gdb[-4:] == '.sde':
+        elif getGDBType(gdb) == 'EGDB':
             self.params[7].enabled = True    
             self.params[8].enabled = True 
 

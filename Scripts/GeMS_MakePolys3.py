@@ -105,14 +105,14 @@ short_mup = str(Path(mup).name).replace('.','_')
 
 # save a copy of MapUnitPolys
 ## saving a copy also saves a copy of any relationship classes
-if save_mup and '.gdb' in gdb:
+if save_mup and getGDBType(gdb) == 'FileGDB':
     arcpy.AddMessage("Saving MapUnitPolys")
     arcpy.management.Copy(mup, guf.getSaveName(mup))
 
 # make selection set without concealed lines
 fld = arcpy.AddFieldDelimiters(caf, "IsConcealed")
 where = f"LOWER({fld}) NOT IN ('y', 'yes')"
-if '.sde' in gdb:
+if getGDBType(gdb) == 'EGDB':
     where = where + " AND MapName = '" + input_mapname + "'"
 arcpy.AddMessage("Selecting all non-concealed lines")
 contacts = arcpy.management.SelectLayerByAttribute(caf, where_clause=where)
@@ -137,9 +137,9 @@ if simple_mode:
 
     # truncate MapUnitPolys
     arcpy.AddMessage(f"Emptying {short_mup}")
-    if '.gdb' in gdb:
+    if getGDBType(gdb) == 'FileGDB':
         arcpy.management.TruncateTable(mup)
-    elif '.sde' in gdb:
+    elif getGDBType(gdb) == 'EGDB':
         arcpy.management.MakeFeatureLayer(mup, 'oldMUPs', "MapName = '" + input_mapname + "'")
         arcpy.management.DeleteRows('oldMUPs')
 
@@ -147,7 +147,7 @@ if simple_mode:
     arcpy.AddMessage(f"Adding features from memory to {mup}")
     arcpy.management.Append(new_polys, mup, "NO_TEST")
 
-elif simple_mode == False and '.gdb' in gdb:
+elif simple_mode == False and getGDBType(gdb) == 'FileGDB':
     arcpy.AddMessage("Continuing in reporting mode")
     # in reporting mode
     # 1) turn map unit polygons into points - adds ORIG_FID
@@ -362,7 +362,7 @@ elif simple_mode == False and '.gdb' in gdb:
     else:
         arcpy.AddMessage("No errors or changes to report")
         
-elif simple_mode == False and '.sde' in gdb:
+elif simple_mode == False and getGDBType(gdb) == 'EGDB':
     arcpy.AddMessage("Error reporting mode not currently configured for enterprise geodatabases")
 
 
@@ -372,7 +372,9 @@ elif simple_mode == False and '.sde' in gdb:
 import arcpy
 import glob
 from pathlib import Path
-
+import os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
 def editSessionActive(gdb):
     if glob.glob(os.path.join(gdb, '*.ed.lock')):
         edit_session = True
@@ -399,9 +401,9 @@ class ToolValidator(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if gdb[-4:] == '.gdb':
+        if getGDBType(gdb) == 'FileGDB':
             self.params[4].enabled = False
-        elif gdb[-4:] == '.sde':
+        elif getGDBType(gdb) == 'EGDB':
             self.params[4].enabled = True    
 
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
@@ -436,7 +438,7 @@ class ToolValidator(object):
                 self.params[0].setErrorMessage('Feature dataset must contain a MapUnitPolys feature class')    
             
             # look for a Topology with MapUnitPolys in it
-            if gdb[-4:] == '.gdb':
+            if getGDBType(gdb) == 'FileGDB':
                 for child in children:
                     if child['datasetType'] == 'Topology':
                         for n in child['featureClassNames']:

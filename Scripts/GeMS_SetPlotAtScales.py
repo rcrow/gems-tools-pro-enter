@@ -103,9 +103,9 @@ if arcpy.Describe(inFc).shapeType != 'Point':
 gdb = os.path.dirname(inFc)
 if arcpy.Describe(gdb).dataType == "FeatureDataset":
     gdb = os.path.dirname(gdb)
-if '.gdb' in gdb:
+if getGDBType(gdb) == 'FileGDB':
     inFcLayer = inFc
-elif '.sde' in gdb:
+elif getGDBType(gdb) == 'EGDB':
     inFcLayer = arcpy.management.SelectLayerByAttribute(inFc, where_clause="MapName = '" + input_mapname + "'")
     
 fields = arcpy.ListFields(inFcLayer)
@@ -123,9 +123,9 @@ if os.path.basename(inFc) == "OrientationPoints":
 else:
     isOP = False
 
-if '.gdb' in gdb:
+if getGDBType(gdb) == 'FileGDB':
     outTable = gdb + "/xxxPlotAtScales"
-elif '.sde' in gdb:
+elif getGDBType(gdb) == 'EGDB':
     outTable = arcpy.env.scratchWorkspace + "/xxxPlotAtScales"    
 testAndDelete(outTable)
 mapUnits = "meters"
@@ -201,6 +201,9 @@ testAndDelete(outTable)
 
 
 #-------------------validation script----------
+import arcpy, os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
 class ToolValidator:
   # Class to add custom behavior and properties to the tool and tool parameters.
 
@@ -220,9 +223,9 @@ class ToolValidator:
         # standard validation.
         fds = os.path.dirname(self.params[0].valueAsText)
         gdb = os.path.dirname(fds)
-        if gdb[-4:] == '.gdb':
+        if getGDBType(gdb) == 'FileGDB':
             self.params[3].enabled = False
-        elif gdb[-4:] == '.sde':
+        elif getGDBType(gdb) == 'EGDB':
             self.params[3].enabled = True    
 
             db_schema = os.path.basename(fds).split('.')[0] + '.' + os.path.basename(fds).split('.')[1]

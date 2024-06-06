@@ -414,3 +414,31 @@ def not_empty(x):
         return True
     else:
         return False
+
+
+def getGDBType(obj):
+    # checks the geodatabase type of the passed object which can be a database connection, feature dataset, feature class or table
+    desc=arcpy.Describe(obj)
+    print(desc.dataElementType)
+    if desc.dataElementType == 'DEWorkspace':
+        desc3=arcpy.Describe(obj)
+    elif desc.dataElementType == 'DEFeatureDataset':
+        desc3=arcpy.Describe(desc.path)
+    elif desc.dataElementType in ['DEFeatureClass','DETable']:
+        desc2=arcpy.Describe(desc.path)
+        if desc2.dataElementType == 'DEFeatureDataset':
+            desc3=arcpy.Describe(desc2.path)
+        elif desc2.dataElementType == 'DEWorkspace':
+            desc3=arcpy.Describe(desc2.catalogPath)
+    else:
+        desc3=arcpy.Describe(desc.path)
+
+    if 'FileGDBWorkspaceFactory' in desc3.workspaceFactoryProgID:
+        getGDBType = 'FileGDB'
+    elif 'SdeWorkspaceFactory' in desc3.workspaceFactoryProgID:
+        getGDBType = 'EGDB'            
+    return(getGDBType)
+    
+    
+    
+    

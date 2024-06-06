@@ -864,9 +864,9 @@ def findDupPts(inFds, outFds):
             if aF in allFields:
                 dupFields.append(aF)
         addMsgAndPrint("    fields to be compared: " + str(dupFields))
-        if '.gdb' in inFds:
+        if getGDBType(inFds) == 'FileGDB':
             arcpy.FindIdentical_management(inFds + "/" + fc, newTb, dupFields, "", "", "ONLY_DUPLICATES")
-        elif '.sde' in inFds:
+        elif getGDBType(inFds) == 'EGDB':
             arcpy.management.MakeFeatureLayer(inFds + "/" + fc, 'in_layer_' + fc.replace('.','_'), "MapName = '" + input_mapname + "'")
             arcpy.FindIdentical_management('in_layer_' + fc.replace('.','_'), newTb, dupFields, "", "", "ONLY_DUPLICATES")
         addMsgAndPrint("    dups_" + fc + ": " + str(numberOfRows(newTb)) + " rows")
@@ -956,9 +956,9 @@ input_mapname = arcpy.GetParameterAsText(2)
 
 inGdb = os.path.dirname(inFds)
 
-if inGdb[-4:] == '.gdb':
+if getGDBType(inGdb) == 'FileGDB':
     outWksp = inGdb[:-4] + "_Topology"
-elif inGdb[-4:] == '.sde':
+elif getGDBType(inGdb) == 'EGDB':
     outWksp = os.path.dirname(inGdb) + '\\' + input_mapname + "_Topology"
     
 if not os.path.exists(outWksp):
@@ -975,10 +975,10 @@ inMup = inCaf.replace("ContactsAndFaults", "MapUnitPolys")
 zeroValue = 2 * arcpy.Describe(inCaf).spatialReference.XYTolerance
 # hKeyTestValue = '2'
 DMU = inGdb + "/DescriptionOfMapUnits"
-if inGdb[-4:] == '.gdb':
+if getGDBType(inGdb) == 'FileGDB':
     DMU = inGdb + "/DescriptionOfMapUnits"
     outGdbName = os.path.basename(inGdb)[:-4] + "_TopologyCheck.gdb"
-elif inGdb[-4:] == '.sde':
+elif getGDBType(inGdb) == 'EGDB':
     input_schema = os.path.basename(inFds).split('.')[0] + '.' + os.path.basename(inFds).split('.')[1]
     DMU = inGdb + "/" + input_schema + ".DescriptionOfMapUnits"
     outGdbName = input_schema.replace('.','_') + '_' + input_mapname + "_TopologyCheck.gdb"
@@ -996,9 +996,9 @@ addMsgAndPrint(
 addMsgAndPrint(" ")
 
 outHtml = open(os.path.join(outWksp, outFdsName + ".html"), "w")
-if inGdb[-4:] == '.gdb':
+if getGDBType(inGdb) == 'FileGDB':
     hKeyDict, sortedUnits = buildHKeyDict(DMU, "OBJECTID > -1")
-elif inGdb[-4:] == '.sde':
+elif getGDBType(inGdb) == 'EGDB':
     hKeyDict, sortedUnits = buildHKeyDict(DMU, "MapName = '" + input_mapname + "'")
 
 ### copy inputs to new gdb/feature dataset
@@ -1017,9 +1017,9 @@ for t in topologies:
 for infc in (inCaf, inMup):
     outfc = os.path.join(outFds, os.path.basename(infc).replace('.','_'))
     testAndDelete(outfc)
-    if inGdb[-4:] == '.gdb':
+    if getGDBType(inGdb) == 'FileGDB':
         arcpy.Copy_management(infc, outfc)
-    elif inGdb[-4:] == '.sde':
+    elif getGDBType(inGdb) == 'EGDB':
         arcpy.management.MakeFeatureLayer(infc, 'in_layer', "MapName = '" + input_mapname + "'")
         arcpy.management.CopyFeatures('in_layer', outfc)    
     if infc == inCaf:
@@ -1193,6 +1193,8 @@ addMsgAndPrint("DONE!")
 
 #-------------------validation script----------
 import arcpy, os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
 class ToolValidator(object):
     """Class for validating a tool's parameter values and controlling
     the behavior of the tool's dialog."""
@@ -1212,9 +1214,9 @@ class ToolValidator(object):
         validation is performed. This method is called whenever a parameter
         has been changed."""
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if gdb[-4:] == '.gdb':
+        if getGDBType(gdb) == 'FileGDB':
             self.params[2].enabled = False
-        elif gdb[-4:] == '.sde':
+        elif getGDBType(gdb) == 'EGDB':
             self.params[2].enabled = True    
 
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]

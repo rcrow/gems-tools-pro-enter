@@ -621,7 +621,7 @@ def createDatabase(outputDir, thisDB):
             return False
 
 
-    if outputDir[-4:] == '.sde':
+    if getGDBType(outputDir) == 'EGDB':
         arcpy.env.workspace = outputDir
         if len(arcpy.ListDatasets('*' + dbUser + '.GeologicMap')) > 0:
             addMsgAndPrint("  Enterprise geodatabase objects already exist.")
@@ -639,7 +639,8 @@ if len(sys.argv) >= 6:
     if outputDir == "#":
         outputDir = os.getcwd()
     outputDir = outputDir.replace("\\", "/")
-    if outputDir[-4:]=='.sde':
+    
+    if getGDBType(outputDir) == 'EGDB':
         addMsgAndPrint('Creating GeMS database in enterprise geodatabase')
         desc = arcpy.Describe(outputDir)
         cp = desc.connectionProperties
@@ -648,7 +649,7 @@ if len(sys.argv) >= 6:
         dbNameUserPrefix = dbName + '.' + dbUser + '.'                                           
 
     thisDB = sys.argv[2]
-    if outputDir[-4:]!='.sde':                       
+    if getGDBType(outputDir) == 'FileGDB':                       
         thisDB = thisDB + ".gdb"
 
     coordSystem = sys.argv[3]

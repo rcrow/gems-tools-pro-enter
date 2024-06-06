@@ -44,7 +44,7 @@ input_mapname = arcpy.GetParameterAsText(2)
 
 gdb = os.path.dirname(inFds)
 db_schema = ''
-if '.sde' in gdb:
+if getGDBType(gdb) == 'EGDB':
     db_schema = os.path.basename(inFds).split('.')[0] + '.' + os.path.basename(inFds).split('.')[1] + '.'
    
 if "GeologicMap" not in os.path.basename(inFds):
@@ -70,13 +70,13 @@ if numberOfRows(OPfc) == 0:
 ## MAKE ORIENTATIONPOINTLABELS FEATURE CLASS or delete existing features from EGDB feature class by MapName
 arcpy.env.workspace = os.path.join(gdb, db_schema + "GeologicMap")
 OPL = os.path.join(gdb, db_schema + "GeologicMap", db_schema + 'OrientationPointLabels')
-if '.gdb' in gdb:
+if getGDBType(gdb) == 'FileGDB':
     testAndDelete(OPL)
     arcpy.CreateFeatureclass_management(inFds, "OrientationPointLabels", "POINT")
     arcpy.AddField_management(OPL, "OrientationPointsID", "TEXT", "", "", 50)
     arcpy.AddField_management(OPL, "Inclination", "TEXT", "", "", 3)
     arcpy.AddField_management(OPL, "PlotAtScale", "FLOAT")    
-if '.sde' in gdb:
+if getGDBType(gdb) == 'EGDB':
     arcpy.management.MakeFeatureLayer(OPL, 'del_layer', "MapName = '" + input_mapname + "'")
     arcpy.management.DeleteRows('del_layer')
 
@@ -89,16 +89,16 @@ OPfields = [
     "Inclination",
     "PlotAtScale",
 ]
-if '.gdb' in gdb:
+if getGDBType(gdb) == 'FileGDB':
     whereclause = "OBJECTID > 0"
-elif '.sde' in gdb:
+elif getGDBType(gdb) == 'EGDB':
     whereclause = "MapName = '" + input_mapname + "'"
 attitudes = arcpy.da.SearchCursor(OPfc, OPfields, where_clause=whereclause)
 
 if gdb[-4:] == ".gdb":
     OPLfields = ["SHAPE@XY", "OrientationPointsID", "Inclination", "PlotAtScale"]
     inclinLabels = arcpy.da.InsertCursor(OPL, OPLfields)
-elif gdb[-4:] == ".sde":
+elif getGDBType(gdb) == 'EGDB':
     edit = arcpy.da.Editor(gdb)
     edit.startEditing(False, True)
     OPLfields = ["SHAPE@XY", "OrientationPointsID", "Inclination", "PlotAtScale", "MapName"]
@@ -128,10 +128,10 @@ for row in attitudes:
         addMsgAndPrint("    inserting " + oType + geom + str(int(round(azi))) + "/" + str(inc))
         if gdb[-4:] == ".gdb": 
             inclinLabels.insertRow(([ix, iy], OP_ID, inc, paScale))
-        elif gdb[-4:] == ".sde": 
+        elif getGDBType(gdb) == 'EGDB': 
             inclinLabels.insertRow(([ix, iy], OP_ID, inc, paScale, input_mapname))
 
-if gdb[-4:] == ".sde": 
+if getGDBType(gdb) == 'EGDB': 
     edit.stopOperation()
     edit.stopEditing(True)
     
@@ -156,7 +156,7 @@ defQuery = "PlotAtScale" + " >= " + str(mapScale)
 objAddedLayer.definitionQuery = defQuery
 
 # set the map layer to the correct OrientationPointsLabels if there is more than one in the enterprise geodatabase under different schemas
-if '.sde' in gdb:
+if getGDBType(gdb) == 'EGDB':
     newcp = objAddedLayer.connectionProperties
     newcp['dataset'] = db_schema + 'OrientationPointLabels'
     objAddedLayer.updateConnectionProperties(objAddedLayer.connectionProperties["dataset"],newcp, False, True)
@@ -164,6 +164,9 @@ if '.sde' in gdb:
 
 
 #-------------------validation script----------
+import arcpy, os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
 class ToolValidator:
   # Class to add custom behavior and properties to the tool and tool parameters.
 
@@ -182,9 +185,9 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if gdb[-4:] == '.gdb':
+        if getGDBType(gdb) == 'FileGDB':
             self.params[2].enabled = False
-        elif gdb[-4:] == '.sde':
+        elif getGDBType(gdb) == 'EGDB':
             self.params[2].enabled = True    
 
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]

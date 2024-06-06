@@ -37,7 +37,7 @@ import GeMS_utilityFunctions as guf
 
 
 versionString = "GeMS_GeolexCheck.py, 1/10/24"
-rawurl = "https://raw.githubusercontent.com/DO/I-USGS/gems-tools-pro/master/Scripts/GeMS_GeolexCheck.py"
+rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_GeolexCheck.py"
 guf.checkVersion(versionString, rawurl, "gems-tools-pro")
 
 
@@ -170,6 +170,8 @@ def table_to_pandas_data_frame(feature_class):
     available on any other computer
     """
     field_list = ["hierarchykey", "mapunit", "name", "fullname", "age"]
+    if guf.getGDBType(feature_class) == 'EGDB':
+        feature_class = arcpy.management.MakeTableView(feature_class, 'dmuMapName', "MapName = '" + input_mapname + "'")  
     return pd.DataFrame(
         arcpy.da.TableToNumPyArray(
             in_table=feature_class,
@@ -385,7 +387,8 @@ if len(sys.argv) == 1:
 arcpy.AddMessage(versionString)
 
 # collect the path to the DMU table
-dmu = sys.argv[1]
+dmu = arcpy.GetParameterAsText(0)
+input_mapname = arcpy.arcpy.GetParameterAsText(3)
 arcpy.AddMessage(f"Evaluating {dmu}")
 
 if ".xlsx" in dmu or ".xls" in dmu:
@@ -395,23 +398,22 @@ if ".xlsx" in dmu or ".xls" in dmu:
 # get parent directory
 dmu_home = os.path.dirname(dmu)
 # figure out what the file format is
-if os.path.splitext(dmu_home)[1] == ".sde":
-    arcpy.AddMessage('running sde')
+
+if guf.getGDBType(dmu_home) == 'EGDB':  # os.path.splitext(dmu_home)[1] == ".sde":
     out_name = input_mapname
-    dmu_home = arcpy.env.scratchWorkspace
-    arcpy.management.MakeTableView(dmu, 'dmuMapName', "MapName = '" + input_mapname + "'")
-    dmu_df = frame_it('dmuMapName', "gdb")
-    
-if os.path.splitext(dmu_home)[1] == ".gdb":
+    if '.gdb' in arcpy.env.scratchWorkspace:
+        dmu_home = os.path.dirname(arcpy.env.scratchWorkspace)
+    else:
+        dmu_home = arcpy.env.scratchWorkspace
+    dmu_df = frame_it(dmu, "gdb")
+elif guf.getGDBType(dmu_home) == 'FileGDB':   # os.path.splitext(dmu_home)[1] == ".gdb":
     out_name = os.path.basename(dmu_home)[:-4]
     dmu_home = os.path.dirname(dmu_home)
     dmu_df = frame_it(dmu, "gdb")
-
 elif os.path.splitext(dmu_home)[1] == ".xlsx":
     out_name = os.path.basename(dmu_home)[:-5]
     dmu_home = os.path.dirname(dmu_home)
     dmu_df = frame_it(dmu, "xls")
-
 elif os.path.splitext(dmu_home)[1] == ".xls":
     arcpy.AddMessage(
         "XLS format files cannot be read by the tool\n"
@@ -419,11 +421,9 @@ elif os.path.splitext(dmu_home)[1] == ".xls":
         + "a comma-delimited text file, or a tab-delimited text file"
     )
     raise SystemError
-
 elif os.path.splitext(dmu)[1] == ".csv":
     out_name = os.path.basename(dmu)[:-4]
     dmu_df = frame_it(dmu, "csv")
-
 elif os.path.splitext(dmu)[1] == ".txt":
     out_name = os.path.basename(dmu)[:-4]
     dmu_df = frame_it(dmu, "txt")
@@ -438,16 +438,13 @@ else:
 # collect and clean the extent of the DMU.
 # can be single state or list of states, comma separated,
 # can be upper or lower case
-dmu_str = sys.argv[2]
+dmu_str = arcpy.GetParameterAsText(1)
 dmu_str = dmu_str.strip("'")
 dmu_str = dmu_str.replace(" ", "")
 dmu_exts = re.split(";|,", dmu_str)
 
 # open the report after running?
-if len(sys.argv) == 4:
-    open_xl = bool(strtobool(sys.argv[3]))
-else:
-    open_xl = True
+open_xl = bool(strtobool(arcpy.GetParameterAsText(2)))
 
 cols = [
     "HierarchyKey",
@@ -675,7 +672,9 @@ if open_xl == True:
 
 
 
-import arcpy
+import arcpy, os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
 class ToolValidator(object):
     """Class for validating a tool's parameter values and controlling
     the behavior of the tool's dialog."""
@@ -695,9 +694,9 @@ class ToolValidator(object):
         validation is performed. This method is called whenever a parameter
         has been changed."""
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if gdb[-4:] == '.gdb':
+        if getGDBType(gdb) == 'FileGDB':
             self.params[3].enabled = False
-        elif gdb[-4:] == '.sde':
+        elif getGDBType(gdb) == 'EGDB':
             self.params[3].enabled = True    
 
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]

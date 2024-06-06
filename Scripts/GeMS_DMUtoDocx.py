@@ -188,10 +188,10 @@ def clean(val):
 
 
 gdb = arcpy.GetParameterAsText(0)
-if gdb[-4:]=='.gdb':
+if getGDBType(gdb) == 'FileGDB':
     #dmu = Path(gdb) / "DescriptionOfMapUnits"
     dmu = os.path.join(gdb, 'DescriptionOfMapUnits')
-if gdb[-4:]=='.sde':
+if getGDBType(gdb) == 'EGDB':
     #dmu = Path(gdb) / arcpy.GetParameterAsText(1) + ".DescriptionOfMapUnits"
     dmu = os.path.join(gdb, arcpy.GetParameterAsText(1) + '.DescriptionOfMapUnits')
 addMsgAndPrint(dmu)
@@ -367,7 +367,8 @@ document.save(outDMUdocx)
 
 #-------------------validation script----------
 import os
-
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
 class ToolValidator:
   """Class for validating a tool's parameter values and controlling
   the behavior of the tool's dialog."""
@@ -389,10 +390,10 @@ class ToolValidator:
     validation is performed.  This method is called whenever a parmater
     has been changed."""
     gdb = self.params[0].valueAsText
-    if gdb[-4:] == '.gdb':
+    if getGDBType(gdb) == 'FileGDB':
         self.params[1].enabled = False
         self.params[2].enabled = False
-    elif gdb[-4:] == '.sde':
+    elif getGDBType(gdb) == 'EGDB':
         self.params[1].enabled = True    
         self.params[2].enabled = True 
 
@@ -414,7 +415,7 @@ class ToolValidator:
     """Modify the messages created by internal validation for each tool
     parameter.  This method is called after internal validation."""
     gdb = self.params[0].valueAsText
-    if gdb[-4:] == '.gdb':
+    if getGDBType(gdb) == 'FileGDB':
         dmu = os.path.join(gdb, 'DescriptionOfMapUnits')
         if not arcpy.Exists(dmu):
             m = "This geodatabase does not have a DescriptionOfMapUnits table"
@@ -426,7 +427,7 @@ class ToolValidator:
             if len(missing) > 0:
                 m = f"Field(s) {', '.join(missing)} missing from DescriptionOfMapUnits"
                 self.params[0].setErrorMessage(m)        
-    elif gdb[-4:] == '.sde' and self.params[1].valueAsText is not None:
+    elif getGDBType(gdb) == 'EGDB' and self.params[1].valueAsText is not None:
         dbschema = self.params[1].valueAsText
         dmu = os.path.join(gdb, dbschema + '.DescriptionOfMapUnits')
         if not arcpy.Exists(dmu):

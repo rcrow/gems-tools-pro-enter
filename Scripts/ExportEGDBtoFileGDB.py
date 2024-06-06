@@ -1,22 +1,17 @@
-"""Convert to geopackage
+"""Convert to file geodatabase
 
-Creates a new geopackage based on a file geodatabase and then exports
-all feature classe and tables to the new geopackage. Feature classes not in 
-feature datasets and standalone tables not in a feature datasets retain 
-the original name but feature classes inside feature datasets have the
-name of the feature dataset pre-prended to the name of the feature class
+Creates a new file geodatabase and then exports all feature classes and tables. 
+Feature classes and feature datasets retain the original base name.
 
 Usage: 
-    Provide the path to a .gdb, an optional output folder. If no output 
-    directory is specified, the gpkg will be created in the parent folder
-    of the input gdb. The resulting geopackage will have the same name 
-    as the gdb with a .gpkg extension. Existing geopackages will be deleted 
-    first and then recreated. The parameter form will warn the user about 
-    an existing geopackage. They may proceed or pick a different output folder.
+    Provide the path to a enterprise geodatabase and an output folder. The resulting file 
+    geodatabase will have the same name as the MapName. Existing file 
+    geodatabases will be deleted first and then recreated. The parameter form will warn the user about 
+    an existing file geodatabase. They may proceed or pick a different output folder.
 
 Args:
-    input_gdb (str) : Path to database. Required.
-    output_dir (str) : Path to folder in which to build the geopackage. Optional.
+    input_gdb (str) : Path to enterprise geodatabase. Required.
+    output_dir (str) : Path to folder in which to build the file geodatabase. Required.
 """
 
 import arcpy
@@ -25,7 +20,7 @@ from GeMS_utilityFunctions import addMsgAndPrint as ap
 import GeMS_utilityFunctions as guf
 
 versionString = "GeMS_Convert2GPKG.py, version of 8/21/23"
-rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_Convert2GPKG.py"
+# rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_Convert2GPKG.py"
 guf.checkVersion(versionString, rawurl, "gems-tools-pro")
 
 def makeMapNameWhereClause(obj, input_mapname):
@@ -41,27 +36,31 @@ def convert(input_gdb, input_schema, input_mapname, output_dir):
     if output_dir in (None, "", "#"):
         output_dir = input_gdb.parent
 
-    output_gpkg = Path(output_dir) / f"{input_gdb.stem}.gpkg"
+    output_fgdb = Path(output_dir) / f"{input_mapname}.gdb"
 
-    if output_gpkg.exists():
-        arcpy.Delete_management(str(output_gpkg))
+    if output_fgdb.exists():
+        arcpy.Delete_management(str(output_fgdb))
 
-    ap(f"Creating {input_gdb.stem}.gpkg")
-    arcpy.CreateSQLiteDatabase_management(str(output_gpkg), "GEOPACKAGE_1.3")
+    ap(f"Creating {input_mapname}.gdb")
+    #arcpy.CreateSQLiteDatabase_management(str(output_fgdb), "GEOPACKAGE_1.3")
+    arcpy.management.CreateFileGDB(output_dir, input_mapname, "10.0")
 
     # Export feature classes in feature datasets
     arcpy.env.workspace = str(input_gdb)
     datasets = arcpy.ListDatasets(input_schema + '*')
     for dataset in datasets:
+        sr = arcpy.Describe(str(input_gdb) + '/' + dataset).spatialReference
+        arcpy.management.CreateFeatureDataset(str(output_fgdb), dataset.split('.')[-1], sr)
         fc_list = arcpy.ListFeatureClasses("", "", dataset)
         for fc in fc_list:
-            fc_name = f"{dataset}_{fc}".replace(input_schema + '.','')
+            #fc_name = f"{dataset}_{fc}".replace(input_schema + '.','')
+            fc_name = fc.split('.')[-1]
             ap(f"Exporting {fc} as {fc_name}")
             if arcpy.GetInstallInfo()['Version'][0] =='3':
-                arcpy.ExportFeatures_conversion(f"{dataset}/{fc}", str(output_gpkg / fc_name), makeMapNameWhereClause(fc, input_mapname))
+                arcpy.ExportFeatures_conversion(f"{dataset}/{fc}", str(output_fgdb / dataset.split('.')[-1] / fc_name), makeMapNameWhereClause(fc, input_mapname))
             if arcpy.GetInstallInfo()['Version'][0] =='2':   
-                arcpy.conversion.FeatureClassToFeatureClass(str(input_gdb / dataset / fc), str(output_gpkg), fc_name, makeMapNameWhereClause(fc, input_mapname))
-            
+                arcpy.conversion.FeatureClassToFeatureClass(str(input_gdb / dataset / fc), str(output_fgdb / dataset.split('.')[-1]), fc_name, makeMapNameWhereClause(fc, input_mapname))
+
     # Export tables and feature classes outside feature datasets
     arcpy.env.workspace = str(input_gdb)
     fc_list = arcpy.ListFeatureClasses(input_schema + '*')            
@@ -70,27 +69,30 @@ def convert(input_gdb, input_schema, input_mapname, output_dir):
         if input_schema in fc:
             ap(f"Exporting {fc}")                
             if arcpy.GetInstallInfo()['Version'][0] =='3':
-                arcpy.ExportFeatures_conversion(fc, str(output_gpkg / fc), makeMapNameWhereClause(fc, input_mapname))
+                arcpy.ExportFeatures_conversion(fc, str(output_fgdb / fc.split('.')[-1]), makeMapNameWhereClause(fc, input_mapname))
             if arcpy.GetInstallInfo()['Version'][0] =='2':   
-                arcpy.conversion.FeatureClassToFeatureClass(str(input_gdb / fc), str(output_gpkg), fc.replace(input_schema + '.',''), makeMapNameWhereClause(fc, input_mapname))
+                arcpy.conversion.FeatureClassToFeatureClass(str(input_gdb / fc), str(output_fgdb), fc.split('.')[-1], makeMapNameWhereClause(fc, input_mapname))
     for table in table_list:
         if input_schema in table:
             ap(f"Exporting {table}")
             if arcpy.GetInstallInfo()['Version'][0] =='3':
-                arcpy.ExportTable_conversion(table, str(output_gpkg / table), makeMapNameWhereClause(table, input_mapname))
+                arcpy.ExportTable_conversion(table, str(output_fgdb / table.split('.')[-1]), makeMapNameWhereClause(table, input_mapname))
             if arcpy.GetInstallInfo()['Version'][0] =='2':   
-                arcpy.conversion.TableToTable(str(input_gdb / table), str(output_gpkg), table.replace(input_schema + '.',''), makeMapNameWhereClause(table, input_mapname))
+                arcpy.conversion.TableToTable(str(input_gdb / table), str(output_fgdb), table.split('.')[-1], makeMapNameWhereClause(table, input_mapname))
                 
     ap("Export complete.")
 
 
 if __name__ == "__main__":
-    param0 = arcpy.GetParameterAsText(0)
-    param1 = arcpy.GetParameterAsText(1)
-    param2 = arcpy.GetParameterAsText(2)
-    param3 = arcpy.GetParameterAsText(3)
+    input_gdb = arcpy.GetParameterAsText(0)
+    input_schema = arcpy.GetParameterAsText(1)
+    input_mapname = arcpy.GetParameterAsText(2)
+    output_dir = arcpy.GetParameterAsText(3)
 
-    convert(param0, param1, param2, param3)
+    if guf.getGDBType(input_gdb) == 'EGDB':
+        convert(input_gdb, input_schema, input_mapname, output_dir)
+    else:
+        ap('The geodatabase is not an enterprise geodatabase')
 
 
 
@@ -146,15 +148,15 @@ class ToolValidator:
         # This gets called after standard validation.
         gdb = self.params[0].valueAsText            
         gdb_name = Path(gdb).stem
-        gpkg_name = f"{gdb_name}.gpkg"
+        fgdb_name = f"{gdb_name}.gdb"
         if not self.params[3].value is None:
             outdir = Path(self.params[3].valueAsText)           
         else:
             outdir = Path(Path(gdb).parent)
          
-        gpkg = outdir / gpkg_name
-        if Path.exists(gpkg):
-            self.params[3].setWarningMessage(f"{str(gpkg)} already exists. This tool overwrites existing geopackages!")
+        fgdb = outdir / fgdb_name
+        if Path.exists(fgdb):
+            self.params[3].setWarningMessage(f"{str(fgdb)} already exists. This tool overwrites existing file geodatabases!")
         else:
             self.params[3].clearMessage()
         return

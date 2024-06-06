@@ -30,8 +30,11 @@ versionString = "GeMS_TranslateToShape.py, version of 8/21/23"
 rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_TranslateToShape.py"
 checkVersion(versionString, rawurl, "gems-tools-pro")
 
-debug = False
+debug = True
 
+input_schema = ''
+input_mapname = ''
+    
 # equivalentFraction is used to rank ProportionTerms from most
 #  abundant to least
 equivalentFraction = {
@@ -52,10 +55,9 @@ equivalentFraction = {
 def usage():
     addMsgAndPrint(
         """
-USAGE: GeMS_TranslateToShp_Arc10.5.py  <geodatabase> <outputWorkspace>
-  where <geodatabase> must be an existing ArcGIS geodatabase.
-  <geodatabase> may be a personal or file geodatabase, and the 
-  .gdb or .mdb extension must be included.
+USAGE: GeMS_TranslateToShape.py  <geodatabase> <outputWorkspace>
+  where <geodatabase> must be an existing ArcGIS file geodatabase, and the 
+  .gdb extension must be included.
   Output is written to directories <geodatabase (no extension)>-simple
   and <geodatabase (no extension)>-open in <outputWorkspace>. Output 
   directories, if they already exist, will be overwritten.
@@ -206,7 +208,7 @@ def dumpTable(fc, outName, isSpatial, outputDir, logfile, isOpen, fcName):
 
     if isSpatial:
         if debug:
-            addMsgAndPrint("dumping ", fc, outputDir, outName)
+            addMsgAndPrint("dumping {}, {}, {}".format(fc, outputDir, outName))
         try:
             arcpy.FeatureClassToFeatureClass_conversion(
                 fc, outputDir, outName, field_mapping=fieldmappings
@@ -262,13 +264,13 @@ def dumpTable(fc, outName, isSpatial, outputDir, logfile, isOpen, fcName):
     addMsgAndPrint("    Finished dump\n")
 
 
-def makeOutputDir(gdb, outWS, isOpen):
-    outputDir = os.path.join(outWS, os.path.basename(gdb)[0:-4])
+def makeOutputDir(newgdb, outws, isOpen):
+    outputDir = os.path.join(outws, os.path.basename(newgdb)[2:-4])
     if isOpen:
         outputDir = outputDir + "-open"
     else:
         outputDir = outputDir + "-simple"
-    addMsgAndPrint("  Making {}...".format(outputDir))
+    addMsgAndPrint("Making {}...".format(outputDir))
     if os.path.exists(outputDir):
         arcpy.Delete_management(outputDir)
     os.mkdir(outputDir)
@@ -303,7 +305,7 @@ def description(unitDesc):
 def makeStdLithDict():
     addMsgAndPrint("  Making StdLith dictionary...")
     stdLithDict = {}
-    rows = arcpy.searchcursor("StandardLithology", "", "", "", "MapUnit")
+    rows = arcpy.SearchCursor("StandardLithology", "", "", "", "MapUnit")  
     row = rows.next()
     unit = row.getValue("MapUnit")
     unitDesc = []
@@ -328,15 +330,15 @@ def makeStdLithDict():
         row = rows.next()
     del row, rows
     stdLithDict[unit] = description(unitDesc)
+    if debug: addMsgAndPrint(str(stdLithDict))
     return stdLithDict
 
 
 def mapUnitPolys(stdLithDict, outputDir, logfile):
-    addMsgAndPrint(
-        "  Translating {}...".format(os.path.join("GeologicMap", "MapUnitPolys"))
-    )
+    addMsgAndPrint("  Translating {}...".format(os.path.join("GeologicMap", "MapUnitPolys")))
     try:
         arcpy.MakeTableView_management("DescriptionOfMapUnits", "DMU")
+                
         if stdLithDict != "None":
             arcpy.AddField_management("DMU", "StdLith", "TEXT", "", "", "255")
             rows = arcpy.UpdateCursor("DMU")
@@ -351,7 +353,6 @@ def mapUnitPolys(stdLithDict, outputDir, logfile):
         arcpy.MakeFeatureLayer_management("GeologicMap/MapUnitPolys", "MUP")
         arcpy.AddJoin_management("MUP", "MapUnit", "DMU", "MapUnit")
         arcpy.AddJoin_management("MUP", "DataSourceID", "DataSources", "DataSources_ID")
-
         arcpy.CopyFeatures_management("MUP", "MUP2")
         DM = "descriptionofmapunits_"
         DS = "datasources_"
@@ -373,12 +374,11 @@ def mapUnitPolys(stdLithDict, outputDir, logfile):
             if f.name.lower() in delete_fields:
                 arcpy.DeleteField_management("MUP2", f.name)
 
-        dumpTable(
-            "MUP2", "MapUnitPolys.shp", True, outputDir, logfile, False, "MapUnitPolys"
-        )
+        dumpTable("MUP2", "MapUnitPolys.shp", True, outputDir, logfile, False, "MapUnitPolys")
     except:
         addMsgAndPrint(arcpy.GetMessages())
         addMsgAndPrint("  Failed to translate MapUnitPolys")
+        print('')
 
     for lyr in ["DMU", "MUP", "MUP2"]:
         if arcpy.Exists(lyr):
@@ -399,9 +399,7 @@ def linesAndPoints(fc, outputDir, logfile):
     if "Type" in fieldNames:
         arcpy.AddField_management(LIN, "Definition", "TEXT", "#", "#", "254")
         arcpy.AddJoin_management(LIN, "Type", "Glossary", "Term")
-        arcpy.CalculateField_management(
-            LIN, "Definition", "!Glossary.Definition![0:254]", "PYTHON"
-        )
+        arcpy.CalculateField_management(LIN, "Definition", "!Glossary.Definition![0:254]", "PYTHON")
         arcpy.RemoveJoin_management(LIN, "Glossary")
 
     # command below are 9.3+ specific
@@ -410,9 +408,7 @@ def linesAndPoints(fc, outputDir, logfile):
         nFieldName = sField.name[:-2]
         arcpy.AddField_management(LIN, nFieldName, "TEXT", "#", "#", "254")
         arcpy.AddJoin_management(LIN, sField.name, "DataSources", "DataSources_ID")
-        arcpy.CalculateField_management(
-            LIN, nFieldName, "!DataSources.Source![0:254]", "PYTHON"
-        )
+        arcpy.CalculateField_management(LIN, nFieldName, "!DataSources.Source![0:254]", "PYTHON")
         arcpy.RemoveJoin_management(LIN, "DataSources")
         arcpy.DeleteField_management(LIN, sField.name)
 
@@ -421,38 +417,36 @@ def linesAndPoints(fc, outputDir, logfile):
     arcpy.Delete_management(LIN2)
 
 
-def main(gdbCopy, outWS, oldgdb):
-    #
-    # Simple version
-    #
+def main(newgdb, outws, gdb):
+    ## Simple version
     isOpen = False
-    addMsgAndPrint("")
-    outputDir, logfile = makeOutputDir(oldgdb, outWS, isOpen)
-    arcpy.env.workspace = gdbCopy
+    if debug: addMsgAndPrint("newgdb: {}, outws: {}, gdb: {}".format(newgdb, outws, gdb))
+    outputDir, logfile = makeOutputDir(newgdb, outws, isOpen) 
+    arcpy.env.workspace = newgdb
 
     if "StandardLithology" in arcpy.ListTables():
         stdLithDict = makeStdLithDict()
     else:
         stdLithDict = "None"
+
     mapUnitPolys(stdLithDict, outputDir, logfile)
 
-    arcpy.env.workspace = os.path.join(gdbCopy, "GeologicMap")
+    arcpy.env.workspace = os.path.join(newgdb, "GeologicMap")
     pointfcs = arcpy.ListFeatureClasses("", "POINT")
     linefcs = arcpy.ListFeatureClasses("", "LINE")
-    arcpy.env.workspace = gdbCopy
+    arcpy.env.workspace = newgdb
     for fc in linefcs:
         linesAndPoints(fc, outputDir, logfile)
     for fc in pointfcs:
         linesAndPoints(fc, outputDir, logfile)
     logfile.close()
-    #
-    # Open version
-    #
+
+    ## Open version
     isOpen = True
-    outputDir, logfile = makeOutputDir(oldgdb, outWS, isOpen)
+    outputDir, logfile = makeOutputDir(newgdb, outws, isOpen)
 
     # list featuredatasets
-    arcpy.env.workspace = gdbCopy
+    arcpy.env.workspace = newgdb
     fds = arcpy.ListDatasets()
 
     # for each featuredataset
@@ -475,11 +469,11 @@ def main(gdbCopy, outWS, oldgdb):
             if fd[i] == fd[i].upper():
                 pfx = pfx + fd[i]
 
-        arcpy.env.workspace = os.path.join(gdbCopy, fd)
+        arcpy.env.workspace = os.path.join(newgdb, fd)
         fcList = arcpy.ListFeatureClasses()
         if fcList != None:
-            arcpy.AddMessage(fc)
             for fc in fcList:
+                arcpy.AddMessage(fc)
                 # don't dump Anno classes
                 if arcpy.Describe(fc).featureType != "Annotation":
                     outName = "{}_{}.shp".format(pfx, fc)
@@ -493,7 +487,7 @@ def main(gdbCopy, outWS, oldgdb):
         logfile.write("\n")
 
     # list tables
-    arcpy.env.workspace = gdbCopy
+    arcpy.env.workspace = newgdb
     for tbl in arcpy.ListTables():
         outName = tbl + ".csv"
         dumpTable(tbl, outName, False, outputDir, logfile, isOpen, tbl)
@@ -502,29 +496,102 @@ def main(gdbCopy, outWS, oldgdb):
 
 ### START HERE ###
 if (
-    len(sys.argv) != 3
-    or not os.path.exists(sys.argv[1])
-    or not os.path.exists(sys.argv[2])
+    not os.path.exists(arcpy.GetParameterAsText(0))
+    or not os.path.exists(arcpy.GetParameterAsText(1))
 ):
     usage()
 else:
     addMsgAndPrint("  " + versionString)
-    gdb = os.path.abspath(sys.argv[1])
+    gdb = os.path.abspath(arcpy.GetParameterAsText(0))
     gdb_name = os.path.basename(gdb)
-    ows = os.path.abspath(sys.argv[2])
+    outws = os.path.abspath(arcpy.GetParameterAsText(1))
+    input_schema = arcpy.GetParameterAsText(2)
+    input_mapname = arcpy.GetParameterAsText(3)
 
     arcpy.env.qualifiedFieldNames = False
     arcpy.env.overwriteOutput = True
 
     # fix the new workspace name so it is guaranteed to be novel, no overwrite
-    newgdb = os.path.join(ows, "xx{}".format(gdb_name))
+    if getGDBType(gdb) == 'FileGDB':
+        newgdb = os.path.join(outws, "xx{}".format(gdb_name))
+    elif getGDBType(gdb) == 'EGDB':
+        newgdb = os.path.join(outws, "xx{}.gdb".format(input_mapname)) 
+    if debug: addMsgAndPrint(newgdb)
+    
+    addMsgAndPrint("  Copying {} to temporary geodatabase {}".format(os.path.basename(gdb), os.path.basename(newgdb)))
     if arcpy.Exists(newgdb):
-        arcpy.Delete_management(newgdb)
-    addMsgAndPrint(
-        "  Copying {} to temporary geodatabase".format(os.path.basename(gdb))
-    )
-    arcpy.Copy_management(gdb, newgdb)
-    main(newgdb, ows, gdb)
+        arcpy.Delete_management(newgdb)        
+    if getGDBType(gdb) == 'FileGDB':
+        arcpy.Copy_management(gdb, newgdb)
+    elif getGDBType(gdb) == 'EGDB':
+        #option 1 - run time 10 minutes
+        #loop through all feature classes in each feature dataset
+        arcpy.env.workspace = gdb
+        arcpy.management.CreateFileGDB(os.path.dirname(newgdb), os.path.basename(newgdb))
+        for fds in arcpy.ListDatasets(input_schema + '*'):
+            addMsgAndPrint('creating feature dataset: ' + fds)
+            sr = arcpy.Describe(fds).spatialReference
+            arcpy.management.CreateFeatureDataset(newgdb, fds.replace(input_schema + '.',''), sr)
+            for fc in arcpy.ListFeatureClasses(wild_card = input_schema + '*', feature_dataset = fds):
+                addMsgAndPrint('copying feature class: ' + fc)
+                arcpy.management.MakeFeatureLayer(fc, 'lyrCount', where_clause="MapName = '" + input_mapname + "'")
+                if int(arcpy.management.GetCount('lyrCount')[0]) > 0:
+                    arcpy.conversion.FeatureClassToFeatureClass(fc, os.path.join(newgdb, fds.replace(input_schema + '.','')), fc.replace(input_schema + '.',''), where_clause="MapName = '" + input_mapname + "'")
+                arcpy.management.Delete('lyrCount')
+        #loop through all feature classes not in feature datasets
+        for fc in arcpy.ListFeatureClasses(wild_card = input_schema + '*'):
+            addMsgAndPrint('copying feature class: ' + fc)
+            arcpy.management.MakeFeatureLayer(fc, 'lyrCount', where_clause="MapName = '" + input_mapname + "'")
+            if int(arcpy.management.GetCount('lyrCount')[0]) > 0:
+                arcpy.conversion.FeatureClassToFeatureClass(fc, newgdb, fc.replace(input_schema + '.',''), where_clause="MapName = '" + input_mapname + "'")
+            arcpy.management.Delete('lyrCount')
+        #loop through all tables
+        for table in arcpy.ListTables(wild_card = input_schema + '*'):
+            addMsgAndPrint('copying table: ' + table)
+            if len(arcpy.ListFields(table, 'MapName')) == 1:
+                whereclause="MapName = '" + input_mapname + "'"
+            elif table.replace(input_schema + '.','') == 'GeoMaterialDict':
+                whereclause="OBJECTID > 0"
+            else:
+                whereclause= arcpy.ListFields(table)[0].name + "='-1'"
+            arcpy.management.MakeTableView(table, 'lyrCount', where_clause=whereclause)
+            if int(arcpy.management.GetCount('lyrCount')[0]) > 0:
+                arcpy.conversion.TableToTable(table, newgdb, table.replace(input_schema + '.',''), where_clause=whereclause)
+            arcpy.management.Delete('lyrCount')
+        #clean up empty feature datasets
+        arcpy.env.workspace = newgdb
+        for fds in arcpy.ListDatasets():
+            if len(arcpy.ListFeatureClasses(wild_card = '', feature_dataset = fds))<1:
+                arcpy.management.Delete(fds)
+        
+        # ##option 2 - run time 12 minutes, but copies data for all maps and alias for tables and fcs has db.schema 
+        # # sdeConnection = gdb #'C:\\GeMS_Coop\\MGS_Data_LOCAL.sde'
+        # # backupDestination = outws #'C:\\GeMS_Coop\\test-output'
+        # # backupGdbName = "xx{}.gdb".format(input_mapname)  #'testscript.gdb'
+        # # arcpy.CreateFileGDB_management(backupDestination, backupGdbName)
+        # # backupGdbPath = os.path.join(backupDestination, backupGdbName)        
+        # # for root, datasets, tables in arcpy.da.Walk(sdeConnection, followlinks=True):
+            # # for dataset in datasets:
+                # # sourceDatasetPath = os.path.join(root, dataset)
+                # # backupDatasetPath = os.path.join(backupGdbPath, dataset.split(".")[-1])
+                # # if input_schema in sourceDatasetPath:
+                    # # addMsgAndPrint(f"{sourceDatasetPath}, {backupDatasetPath}")
+                    # # arcpy.Copy_management(sourceDatasetPath, backupDatasetPath)
+                    # # #sr = arcpy.Describe(sourceDatasetPath).spatialReference
+                    # # #arcpy.management.CreateFeatureDataset(backupGdbPath, dataset.split(".")[-1], sr)
+            # # for table in tables:
+                # # # Ignore attachment tables, taken care of in the previous Copy_management
+                # # if not table.endswith("__ATTACH") and input_schema in table:
+                    # # sourceTableName = os.path.join(root, table)
+                    # # itemDesc = arcpy.Describe(sourceTableName)
+                    # # if itemDesc.dataType in ("Table", "FeatureClass"):
+                        # # backupTableName = os.path.join(backupGdbPath, table.split(".")[-1])
+                        # # if input_schema in sourceTableName:
+                            # # addMsgAndPrint(sourceTableName)
+                            # # arcpy.Copy_management(sourceTableName, backupTableName)        
+            # # break
+
+    main(newgdb, outws, gdb)
 
     # cleanup
     addMsgAndPrint("\n  Deleting temporary geodatabase")
@@ -533,3 +600,58 @@ else:
     except:
         addMsgAndPrint("    As usual, failed to delete temporary geodatabase")
         addMsgAndPrint("    Please delete " + newgdb + "\n")
+
+
+
+
+#-------------------validation script----------
+import os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
+class ToolValidator:
+    """Class for validating a tool's parameter values and controlling
+    the behavior of the tool's dialog."""
+
+    def __init__(self):
+        """Setup the Geoprocessor and the list of tool parameters."""
+        import arcgisscripting as ARC
+        self.GP = ARC.create(9.3)
+        self.params = self.GP.getparameterinfo()
+
+    def initializeParameters(self):
+        """Refine the properties of a tool's parameters.  This method is
+        called when the tool is opened."""
+        self.params[2].enabled = False
+        self.params[3].enabled = False     
+        return
+
+    def updateParameters(self):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parmater
+        has been changed."""
+        gdb = self.params[0].valueAsText
+        if getGDBType(gdb) == 'FileGDB':
+            self.params[2].enabled = False
+            self.params[3].enabled = False
+        elif getGDBType(gdb) == 'EGDB':
+            self.params[2].enabled = True    
+            self.params[3].enabled = True 
+
+            schemaList = []
+            arcpy.env.workspace = gdb  
+            datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
+            for dataset in datasets:
+                schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
+            self.params[2].filter.list = sorted(set(schemaList))	
+
+            if self.params[2].value is not None:
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[2].value + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[3].filter.list = sorted(set(mapList))     
+        return
+
+    def updateMessages(self):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        return

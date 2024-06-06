@@ -608,18 +608,18 @@ def validate_online(md_record):
 # Enumerated domain values DO have value sources but those come from the Glossary
 
 # the database
-db_path = Path(sys.argv[1])
+db_path = Path(arcpy.GetParameterAsText(0))
 arcpy.AddMessage("Building dictionary of database contents")
 obj_dict = gdb_object_dict(str(db_path))
 
 # export embedded metadata? concert string to boolean
-if sys.argv[2].lower() in ["true", "yes"]:
+if arcpy.GetParameterAsText(1).lower() in ["true", "yes"]:
     arc_md = True
 else:
     arc_md = False
 
 # my_definitions.py
-my_defs_path = Path(sys.argv[3])
+my_defs_path = Path(arcpy.GetParameterAsText(2))
 if my_defs_path.is_file():
     mod_name = my_defs_path.stem
     import importlib.util
@@ -648,7 +648,7 @@ else:
     myEntityDict = {}
 
 # path to template file
-template_path = sys.argv[4]
+template_path = arcpy.GetParameterAsText(3)
 
 # what to do with data sources.
 # True - remove any existing first
@@ -663,7 +663,7 @@ sources_choice = {
     "save no sources": 8,
 }
 
-sources_param = sources_choice[sys.argv[5]]
+sources_param = sources_choice[arcpy.GetParameterAsText(4)]
 
 # what to do with process steps, dataqual/lineage/procstep
 history_choices = {
@@ -673,17 +673,17 @@ history_choices = {
     "save all history": 4,
 }
 
-history_param = history_choices[sys.argv[6]]
+history_param = history_choices[arcpy.GetParameterAsText(5)]
 
 # convert the 'missing definitions' argument to boolean
-if "MISSING" in sys.argv[7]:
+if "MISSING" in arcpy.GetParameterAsText(6):
     missing = True
 else:
     missing = False
 
 # convert text file choice to boolean
 # export embedded metadata? concert string to boolean
-if sys.argv[8].lower() in ["true", "yes"]:
+if arcpy.GetParameterAsText(7).lower() in ["true", "yes"]:
     text_bool = True
 else:
     text_bool = False

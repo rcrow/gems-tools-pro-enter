@@ -22,6 +22,11 @@ if __name__ == '__main__':
     datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")[0]
     dbname = dataset.split('.')[0]
     dbNameUserPrefix = dbname + '.' + arcpy.GetParameterAsText(1) + '.'
+    
+    # add the Domain_MapName view to the EGDB for use by the MapName Domain Update tool
+    if not arcpy.Exists(thisDB + "/" + dbNameUserPrefix + 'Domain_MapName'):
+        arcpy.management.CreateDatabaseView(thisDB, "Domain_MapName", "SELECT TOP 5000 code, [description] FROM (SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "MAPUNITPOLYS_evw GROUP BY MapName UNION SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "CONTACTSANDFAULTS_evw GROUP BY MapName UNION SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "STATIONS_evw GROUP BY MapName UNION SELECT MapName AS code, MapName AS [description] FROM " + dbNameUserPrefix + "GEOLOGICPOINTS_evw GROUP BY MapName) t ORDER BY code")
+            
     showPyMessage(db + "/" + dbNameUserPrefix + "Domain_MapName domain values")
     arcpy.management.TableToDomain(db + "/" + dbNameUserPrefix + "Domain_MapName", "code", "description", db, dbNameUserPrefix + "MapNameValues", "description", "REPLACE")
  

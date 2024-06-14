@@ -21,7 +21,7 @@ import GeMS_utilityFunctions as guf
 
 versionString = "GeMS_Convert2GPKG.py, version of 8/21/23"
 # rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_Convert2GPKG.py"
-guf.checkVersion(versionString, rawurl, "gems-tools-pro")
+# guf.checkVersion(versionString, rawurl, "gems-tools-pro")
 
 def makeMapNameWhereClause(obj, input_mapname):
     if len(arcpy.ListFields(obj,"MapName")) == 0:

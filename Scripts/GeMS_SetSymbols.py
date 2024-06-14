@@ -163,6 +163,10 @@ if sys.argv[8] == "true":
 else:
     setPolys = False
 
+input_schema = arcpy.GetParameterAsText(8) + '.'
+input_mapname = arcpy.GetParameterAsText(9)
+
+
 # set thresholds
 approxThreshold = mapScale * certain_Approxmm / 1000.0
 inferredThreshold = mapScale * approx_Inferredmm / 1000.0
@@ -173,8 +177,13 @@ gdb = os.path.dirname(inFds)
 arcpy.env.workspace = gdb
 Fds = os.path.basename(inFds)
 
+if getGDBType(gdb) == 'FileGDB':
+    whereclause = "OBJECTID > -1"
+if getGDBType(gdb) == 'EGDB':
+    whereclause = "MapName = '" + input_mapname + "'" 
+    
 # set featureClasses  (ContactsAndFaults, OrientationPoints, GeologicLines)
-caf = arcpy.ListFeatureClasses("ContactsAndFaults", feature_dataset=Fds)[0]
+caf = arcpy.ListFeatureClasses(input_schema + "ContactsAndFaults", feature_dataset=Fds)[0]
 caf = os.path.join(inFds, caf)
 if inFds.find("CorrelationOfMapUnits") == -1:
     gel = caf.replace("ContactsAndFaults", "GeologicLines")
@@ -216,9 +225,12 @@ for fc in caf, gel:
         test_locks(gdb, os.path.basename(fc))
 
         edit = arcpy.da.Editor(gdb)
-        edit.startEditing(False, False)
+        if getGDBType(gdb) == 'FileGDB':
+            edit.startEditing(False, False)
+        if getGDBType(gdb) == 'EGDB':
+            edit.startEditing(False, True)
 
-        with arcpy.da.UpdateCursor(fc, fields) as cursor:
+        with arcpy.da.UpdateCursor(fc, fields, where_clause = whereclause) as cursor:
             for row in cursor:
                 rowChanged = False
                 typ = row[0]
@@ -289,12 +301,15 @@ if arcpy.Exists(fc):
     # top_bool = test_topology(gdb, os.path.basename(fc))
     # if top_bool:
     edit = arcpy.da.Editor(gdb)
-    edit.startEditing(False, False)
-
+    if getGDBType(gdb) == 'FileGDB':
+        edit.startEditing(False, False)
+    if getGDBType(gdb) == 'EGDB':
+        edit.startEditing(False, True)
+    
     if debug:
         addMsgAndPrint("fields = {},  fc = {}".format(fields, fc))
 
-    with arcpy.da.UpdateCursor(fc, fields) as cursor:
+    with arcpy.da.UpdateCursor(fc, fields, whereclause) as cursor:
         for row in cursor:
             typ = row[0]
             orConf = row[1]
@@ -352,7 +367,10 @@ if setPolys:
         # top_bool = test_topology(gdb, os.path.basename(fc))
         # if top_bool:
         edit = arcpy.da.Editor(gdb)
-        edit.startEditing(False, False)
+        if getGDBType(gdb) == 'FileGDB':
+            edit.startEditing(False, False)
+        if getGDBType(gdb) == 'EGDB':
+            edit.startEditing(False, True)
 
         mupTable = "mupTable"
         testAndDelete(mupTable)
@@ -416,3 +434,60 @@ if setPolys:
         edit.stopEditing(True)
     if top_bool:
         del edit
+
+
+
+
+#-------------------validation script----------
+import os
+from pathlib import Path
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
+class ToolValidator:
+  # Class to add custom behavior and properties to the tool and tool parameters.
+
+    def __init__(self):
+        # set self.params for use in other function
+        self.params = arcpy.GetParameterInfo()
+
+    def initializeParameters(self):
+        # Customize parameter properties. 
+        # This gets called when the tool is opened.
+        self.params[8].enabled = False
+        self.params[9].enabled = False          
+        return
+
+    def updateParameters(self):
+        # Modify parameter values and properties.
+        # This gets called each time a parameter is modified, before 
+        # standard validation.
+        gdb = os.path.dirname(self.params[0].valueAsText)
+        if getGDBType(gdb) == 'FileGDB':
+            self.params[8].enabled = False
+            self.params[9].enabled = False
+        elif getGDBType(gdb) == 'EGDB':
+            self.params[8].enabled = True    
+            self.params[9].enabled = True 
+
+            schemaList = []
+            arcpy.env.workspace = gdb  
+            datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
+            for dataset in datasets:
+                schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
+            self.params[8].filter.list = sorted(set(schemaList))	
+
+            if self.params[8].value is not None:
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[8].value + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[9].filter.list = sorted(set(mapList))         
+        return
+
+    def updateMessages(self):
+        # Customize messages for the parameters.
+        # This gets called after standard validation.
+        return
+
+    # def isLicensed(self):
+    #     # set tool isLicensed.
+    # return True

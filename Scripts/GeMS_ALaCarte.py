@@ -401,7 +401,7 @@ if __name__ == "__main__":
     db = sys.argv[1]
     # gdb_items = sys.argv[2]
     value_table = arcpy.GetParameter(1)
-    if getGDBType(db) == 'EGDB':
+    if guf.getGDBType(db) == 'EGDB':
         desc = arcpy.Describe(db)
         cp = desc.connectionProperties
         dbUser = cp.user

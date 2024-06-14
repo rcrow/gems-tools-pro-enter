@@ -671,7 +671,7 @@ if open_xl == True:
 
 
 
-
+#-------------------validation script----------
 import arcpy, os
 sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
 from GeMS_utilityFunctions import *

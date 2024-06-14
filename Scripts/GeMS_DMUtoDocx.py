@@ -274,31 +274,32 @@ def iterate_soup(paragraph, text, special=None):
 def main(params):
     # PARAMETERS
     dmu_table = params[0]
-
+    mapname = params[2]
+    
     if not arcpy.Exists(dmu_table):
         arcpy.AddError("Could not find DescriptionOfMapUnits table")
         sys.exit()
 
-    out_dir = Path(params[1])
-    out_name = params[2]
+    out_dir = Path(params[3])
+    out_name = params[4]
     if not out_name.endswith(".docx"):
         out_name = f"{out_name}.docx"
     out_file = out_dir / out_name
 
     # do we calculate paragraph styles based on dmu attributes or use the value in ParagraphStyle?
     calc_style = False
-    if len(params) > 3:
-        calc_style = guf.eval_bool(params[3])
+    if len(params) > 5:
+        calc_style = guf.eval_bool(params[5])
 
     # do we use the value in MapUnit or Label for the unit abbreviations in the docx?
     use_label = False
-    if len(params) > 4:
-        use_label = guf.eval_bool(params[4])
+    if len(params) > 6:
+        use_label = guf.eval_bool(params[6])
 
     # do we try to translate annotation text formatting into Word styles?
     format = False
-    if len(params) > 5:
-        format = guf.eval_bool(params[5])
+    if len(params) > 7:
+        format = guf.eval_bool(params[7])
 
     if use_label:
         mu = "Label"
@@ -312,18 +313,22 @@ def main(params):
 
     # are we making a DMU or an LMU?
     is_lmu = False
-    if len(params) > 6:
-        is_lmu = guf.eval_bool(params[6])
+    if len(params) > 8:
+        is_lmu = guf.eval_bool(params[8])
 
     open_doc = False
-    if len(params) > 7:
-        open_doc = guf.eval_bool(params[7])
+    if len(params) > 9:
+        open_doc = guf.eval_bool(params[9])
 
     # START
     sqlclause = (None, "ORDER by HierarchyKey ASC")
+    if mapname is not None:
+        whereclause = "MapName = '" + mapname + "'"
+    else:
+        whereclause = "*"    
     rows = [
         list(row)
-        for row in arcpy.da.SearchCursor(dmu_table, fields, sql_clause=sqlclause)
+        for row in arcpy.da.SearchCursor(dmu_table, fields, where_clause=whereclause, sql_clause=sqlclause)
     ]
 
     # strings might have leading or trailing spaces
@@ -439,3 +444,70 @@ def main(params):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
+
+#-------------------validation script----------
+import os
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
+
+class ToolValidator:
+  """Class for validating a tool's parameter values and controlling
+  the behavior of the tool's dialog."""
+
+  def __init__(self):
+    """Setup arcpy and the list of tool parameters."""
+    import arcpy
+    self.params = arcpy.GetParameterInfo()
+
+  def initializeParameters(self):
+    """Refine the properties of a tool's parameters.  This method is
+    called when the tool is opened."""
+    self.params[1].enabled = False
+    self.params[2].enabled = False  
+    return
+
+  def updateParameters(self):
+    """Modify the values and properties of parameters before internal
+    validation is performed.  This method is called whenever a parmater
+    has been changed."""
+    gdb = os.path.dirname(self.params[0].valueAsText)
+    if getGDBType(gdb) == 'FileGDB':
+        self.params[1].enabled = False
+        self.params[2].enabled = False
+    elif getGDBType(gdb) == 'EGDB':
+        self.params[1].enabled = True    
+        self.params[2].enabled = True 
+
+        schemaList = []
+        arcpy.env.workspace = gdb  
+        datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
+        for dataset in datasets:
+            schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
+        self.params[1].filter.list = sorted(set(schemaList))	
+
+        if self.params[1].value is not None:
+            mapList = []
+            for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[1].value + '.Domain_MapName',['code']):
+                mapList.append(row[0])
+            self.params[2].filter.list = sorted(set(mapList))         
+    return    
+
+  def updateMessages(self):
+    """Modify the messages created by internal validation for each tool
+    parameter.  This method is called after internal validation."""
+    dmu = self.params[0].valueAsText
+    # dmu = os.path.join(gdb, 'DescriptionOfMapUnits')
+    # if not arcpy.Exists(dmu):
+    #    m = "This geodatabase does not have a DescriptionOfMapUnits table"
+    #    self.params[0].setErrorMessage(m)
+    #else:
+    required = set(['MapUnit', 'Label', 'Name', 'Age', 'Description', 'ParagraphStyle', 'HierarchyKey'])
+    fields = set([f.name.lower() for f in arcpy.ListFields(dmu)])
+    missing = [n for n in required if n.lower() not in fields]
+    if len(missing) > 0:
+        m = f"Field(s) {', '.join(missing)} missing from DescriptionOfMapUnits"
+        self.params[0].setErrorMessage(m)
+            
+    return
+    

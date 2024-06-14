@@ -36,7 +36,7 @@ import GeMS_utilityFunctions as guf
 from pathlib import Path
 import sys
 
-versionString = "GeMS_ALaCarte.py, version of 10/5/23"
+versionString = "GeMS_ALaCarte.py, version of 5/8/24"
 rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_ALaCarte.py"
 guf.checkVersion(versionString, rawurl, "gems-tools-pro")
 
@@ -95,10 +95,6 @@ def eval_prj(prj_str, fd):
     if any([x in fd for x in unk_fds]):
         # create 'UNKNOWN' spatial reference
         sr = ""
-        # sr_empty = arcpy.FromWKT("POINT EMPTY").spatialReference
-        # sr_str = sr_empty.exportToString()
-        # sr = arcpy.SpatialReference()
-        # sr.loadFromString(sr_str)
     else:
         sr = arcpy.SpatialReference()
         sr.loadFromString(prj_str)
@@ -127,14 +123,28 @@ def conf_domain(gdb):
         arcpy.AddMessage("l_domains=" + str(l_domains))                                  
     if not dbNameUserPrefix + "ExIDConfidenceValues" in l_domains:
         conf_vals = gdef.DefaultExIDConfidenceValues
-        arcpy.AddMessage("adding domain ExIDConfidenceValues")
+        arcpy.AddMessage("Adding domain ExIDConfidenceValues")
         arcpy.CreateDomain_management(
             gdb, dbNameUserPrefix + "ExIDConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
         )
         for val in conf_vals:
-            arcpy.AddMessage(f"adding value {val[0]}")
+            arcpy.AddMessage(f" Adding value {val[0]}")
             arcpy.AddCodedValueToDomain_management(
                 gdb, dbNameUserPrefix + "ExIDConfidenceValues", val[0], val[0]
+            )
+
+
+def style_domain(gdb):
+    l_domains = [d.name for d in arcpy.da.ListDomains(gdb)]
+    if not "ParagraphStyleValues" in l_domains:
+        arcpy.AddMessage("Adding domain ParagraphStyleValues")
+        arcpy.CreateDomain_management(
+            gdb, "ParagraphStyleValues", "", "TEXT", "CODED", "DUPLICATE"
+        )
+        for val in gdef.ParagraphStyleValues:
+            arcpy.AddMessage(f"  Adding value {val}")
+            arcpy.AddCodedValueToDomain_management(
+                gdb, "ParagraphStyleValues", val, val
             )
 
 
@@ -168,7 +178,7 @@ def add_geomaterial(db, out_path, padding):
     if is_gdb:
         l_domains = [d.name for d in arcpy.da.ListDomains(db)]
         if not "GeoMaterials" in l_domains:
-            arcpy.AddMessage(f"{padding}adding domain GeoMaterials")
+            arcpy.AddMessage(f"{padding}Adding domain GeoMaterials")
             arcpy.TableToDomain_management(
                 geomat_csv,
                 "GeoMaterial",
@@ -180,12 +190,12 @@ def add_geomaterial(db, out_path, padding):
         # GeoMaterialConfidenceValues
         if not "GeoMaterialConfidenceValues" in l_domains:
             conf_vals = gdef.GeoMaterialConfidenceValues
-            arcpy.AddMessage(f"{padding}adding domain GeoMaterialConfidenceValues")
+            arcpy.AddMessage(f"{padding}Adding domain GeoMaterialConfidenceValues")
             arcpy.CreateDomain_management(
                 db, dbNameUserPrefix + "GeoMaterialConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
             )
             for val in conf_vals:
-                arcpy.AddMessage(f"{padding}  adding value {val}")
+                arcpy.AddMessage(f"{padding}  Adding value {val}")
                 arcpy.AddCodedValueToDomain_management(
                     db, dbNameUserPrefix + "GeoMaterialConfidenceValues", val, val
                 )
@@ -220,6 +230,7 @@ def process(db, value_table):
 
         if is_gdb:
             conf_domain(db)
+            style_domain(db)
 
         # feature dataset
         fd_tab = ""
@@ -281,7 +292,6 @@ def process(db, value_table):
                             field_defs.remove(field)                
                 #guf.showPyMessage(field_defs)
                 for fDef in field_defs:
-                    dom_spaces = ""
                     if not fDef[0] in fc_fields:
                         try:
                             arcpy.AddMessage(f"{fd_tab}{fc_tab}Adding field {fDef[0]}")
@@ -353,6 +363,21 @@ def process(db, value_table):
                                 )
                                 arcpy.AddMessage(
                                     f"{fd_tab}{fc_tab}{fld_tab}GeoMaterials domain assigned to field GeoMaterial"
+                                )
+
+                        if fDef[0] == "ParagraphStyle":
+                            try:
+                                this_field = arcpy.ListFields(fc_path, fDef[0])[0]
+                                if not this_field.domain == "ParagraphStyleValues":
+                                    arcpy.AssignDomainToField_management(
+                                        str(fc_path), fDef[0], "ParagraphStyleValues"
+                                    )
+                                    arcpy.AddMessage(
+                                        f"{fd_tab}{fc_tab}{fld_tab}Domain ParagraphStyleValues assigned to field {fDef[0]}"
+                                    )
+                            except:
+                                arcpy.AddWarning(
+                                    f"Failed to assign domain ParagraphStyleValues to field {fDef[0]}"
                                 )
                             # except:
                             #     arcpy.AddWarning(

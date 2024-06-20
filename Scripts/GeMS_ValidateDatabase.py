@@ -1487,7 +1487,7 @@ def main(argv):
     # if egdb then run stored procedure and exit script because metadata and topology not run on EGDBs with this tool
     if guf.getGDBType(argv[1]) == 'EGDB':
         ap("Validating enterprise geodatabase -  attribute data only")    
-        conn = argv[1]  #C:\GeMS_Coop\MGS_Data_LOCAL_GeMS_Bdrk24k.sde
+        conn = argv[1]
         strSQL = "EXEC uspGeMS_Validate_Database '" + argv[2].split('.')[1] + "','" + argv[3] + "' WITH RESULT SETS NONE"  
         runDBStoredProcedure(conn,strSQL)
         return
@@ -2030,13 +2030,8 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.
         gdb = self.params[0].valueAsText
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[1].enabled = False
-            self.params[2].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[1].enabled = True    
-            self.params[2].enabled = True 
-
+        if getGDBType(gdb) == 'EGDB':
+            self.params[1].enabled = True 
             schemaList = []
             arcpy.env.workspace = gdb  
             datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
@@ -2044,12 +2039,21 @@ class ToolValidator:
                 schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
             self.params[1].filter.list = sorted(set(schemaList))	
 
-            if self.params[1].value is not None:
+            if self.params[1].value is not None and len(arcpy.ListTables(self.params[1].value + '.Domain_MapName')) == 1:  
+                self.params[2].enabled = True 
                 mapList = []
                 for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[1].value + '.Domain_MapName',['code']):
                     mapList.append(row[0])
                 self.params[2].filter.list = sorted(set(mapList)) 
-                
+            else:
+                self.params[2].enabled = False
+                self.params[2].value = None
+        else:
+            self.params[1].enabled = False
+            self.params[1].value = None
+            self.params[2].enabled = False
+            self.params[2].value = None
+            
         if gdb.endswith(".gpkg"):
             self.params[5].enabled = False
             self.params[5].value = False

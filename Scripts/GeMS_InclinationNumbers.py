@@ -185,16 +185,21 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[2].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[2].enabled = True    
-
+        arcpy.env.workspace = gdb
+        if getGDBType(gdb) == 'EGDB':
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
-            mapList = []
-            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
-                mapList.append(row[0])
-            self.params[2].filter.list = sorted(set(mapList))         
+            if len(arcpy.ListTables(db_schema + '.Domain_MapName')) == 1:
+                self.params[2].enabled = True    
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[2].filter.list = sorted(set(mapList))         
+            else:
+                self.params[2].enabled = False
+                self.params[2].value = None
+        else:
+            self.params[2].enabled = False
+            self.params[2].value = None
         return
 
     def updateMessages(self):

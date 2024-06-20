@@ -462,13 +462,10 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[8].enabled = False
-            self.params[9].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
+        if getGDBType(gdb) == 'EGDB':
             self.params[8].enabled = True    
-            self.params[9].enabled = True 
-
+            db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
+            
             schemaList = []
             arcpy.env.workspace = gdb  
             datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
@@ -476,11 +473,20 @@ class ToolValidator:
                 schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
             self.params[8].filter.list = sorted(set(schemaList))	
 
-            if self.params[8].value is not None:
+            if self.params[8].value is not None and len(arcpy.ListTables(db_schema + '.Domain_MapName')) == 1:
+                self.params[9].enabled = True 
                 mapList = []
                 for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[8].value + '.Domain_MapName',['code']):
                     mapList.append(row[0])
-                self.params[9].filter.list = sorted(set(mapList))         
+                self.params[9].filter.list = sorted(set(mapList))  
+            else:
+                self.params[9].enabled = False
+                self.params[9].value = None           
+        else:
+            self.params[8].enabled = False
+            self.params[8].value = None
+            self.params[9].enabled = False
+            self.params[9].value = None
         return
 
     def updateMessages(self):

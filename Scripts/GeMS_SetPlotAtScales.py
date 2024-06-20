@@ -199,7 +199,6 @@ testAndDelete(outTable)
 
 
 
-
 #-------------------validation script----------
 import arcpy, os
 sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
@@ -223,16 +222,21 @@ class ToolValidator:
         # standard validation.
         fds = os.path.dirname(self.params[0].valueAsText)
         gdb = os.path.dirname(fds)
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[3].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[3].enabled = True    
-
+        arcpy.env.workspace = gdb
+        if getGDBType(gdb) == 'EGDB':
             db_schema = os.path.basename(fds).split('.')[0] + '.' + os.path.basename(fds).split('.')[1]
-            mapList = []
-            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
-                mapList.append(row[0])
-            self.params[3].filter.list = sorted(set(mapList))          
+            if len(arcpy.ListTables(db_schema + '.Domain_MapName')) == 1:
+                self.params[3].enabled = True             
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[3].filter.list = sorted(set(mapList))          
+            else:
+                self.params[3].enabled = False 
+                self.params[3].value = None        
+        else:
+            self.params[3].enabled = False 
+            self.params[3].value = None 
         return
 
     def updateMessages(self):

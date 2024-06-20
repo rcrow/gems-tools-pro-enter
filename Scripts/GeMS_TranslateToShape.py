@@ -507,15 +507,19 @@ else:
     outws = os.path.abspath(arcpy.GetParameterAsText(1))
     input_schema = arcpy.GetParameterAsText(2)
     input_mapname = arcpy.GetParameterAsText(3)
-
+           
     arcpy.env.qualifiedFieldNames = False
     arcpy.env.overwriteOutput = True
 
     # fix the new workspace name so it is guaranteed to be novel, no overwrite
     if getGDBType(gdb) == 'FileGDB':
         newgdb = os.path.join(outws, "xx{}".format(gdb_name))
-    elif getGDBType(gdb) == 'EGDB':
+    elif getGDBType(gdb) == 'EGDB' and input_mapname == '':
+        newgdb = os.path.join(outws, "xx{}.gdb".format('EGDB')) 
+        whereclause="OBJECTID > 0"
+    elif getGDBType(gdb) == 'EGDB' and input_mapname != '':
         newgdb = os.path.join(outws, "xx{}.gdb".format(input_mapname)) 
+        whereclause="MapName = '" + input_mapname + "'"
     if debug: addMsgAndPrint(newgdb)
     
     addMsgAndPrint("  Copying {} to temporary geodatabase {}".format(os.path.basename(gdb), os.path.basename(newgdb)))
@@ -534,16 +538,16 @@ else:
             arcpy.management.CreateFeatureDataset(newgdb, fds.replace(input_schema + '.',''), sr)
             for fc in arcpy.ListFeatureClasses(wild_card = input_schema + '*', feature_dataset = fds):
                 addMsgAndPrint('copying feature class: ' + fc)
-                arcpy.management.MakeFeatureLayer(fc, 'lyrCount', where_clause="MapName = '" + input_mapname + "'")
+                arcpy.management.MakeFeatureLayer(fc, 'lyrCount', where_clause=whereclause)
                 if int(arcpy.management.GetCount('lyrCount')[0]) > 0:
-                    arcpy.conversion.FeatureClassToFeatureClass(fc, os.path.join(newgdb, fds.replace(input_schema + '.','')), fc.replace(input_schema + '.',''), where_clause="MapName = '" + input_mapname + "'")
+                    arcpy.conversion.FeatureClassToFeatureClass(fc, os.path.join(newgdb, fds.replace(input_schema + '.','')), fc.replace(input_schema + '.',''), where_clause=whereclause)
                 arcpy.management.Delete('lyrCount')
         #loop through all feature classes not in feature datasets
         for fc in arcpy.ListFeatureClasses(wild_card = input_schema + '*'):
             addMsgAndPrint('copying feature class: ' + fc)
-            arcpy.management.MakeFeatureLayer(fc, 'lyrCount', where_clause="MapName = '" + input_mapname + "'")
+            arcpy.management.MakeFeatureLayer(fc, 'lyrCount', where_clause=whereclause)
             if int(arcpy.management.GetCount('lyrCount')[0]) > 0:
-                arcpy.conversion.FeatureClassToFeatureClass(fc, newgdb, fc.replace(input_schema + '.',''), where_clause="MapName = '" + input_mapname + "'")
+                arcpy.conversion.FeatureClassToFeatureClass(fc, newgdb, fc.replace(input_schema + '.',''), where_clause=whereclause)
             arcpy.management.Delete('lyrCount')
         #loop through all tables
         for table in arcpy.ListTables(wild_card = input_schema + '*'):
@@ -553,7 +557,7 @@ else:
             elif table.replace(input_schema + '.','') == 'GeoMaterialDict':
                 whereclause="OBJECTID > 0"
             else:
-                whereclause= arcpy.ListFields(table)[0].name + "='-1'"
+                whereclause= arcpy.ListFields(table)[0].name + ">'-1'"
             arcpy.management.MakeTableView(table, 'lyrCount', where_clause=whereclause)
             if int(arcpy.management.GetCount('lyrCount')[0]) > 0:
                 arcpy.conversion.TableToTable(table, newgdb, table.replace(input_schema + '.',''), where_clause=whereclause)
@@ -630,13 +634,8 @@ class ToolValidator:
         validation is performed.  This method is called whenever a parmater
         has been changed."""
         gdb = self.params[0].valueAsText
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[2].enabled = False
-            self.params[3].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[2].enabled = True    
-            self.params[3].enabled = True 
-
+        if getGDBType(gdb) == 'EGDB':
+            self.params[2].enabled = True
             schemaList = []
             arcpy.env.workspace = gdb  
             datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
@@ -644,11 +643,20 @@ class ToolValidator:
                 schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
             self.params[2].filter.list = sorted(set(schemaList))	
 
-            if self.params[2].value is not None:
+            if self.params[2].value is not None and len(arcpy.ListTables(self.params[2].value + '.Domain_MapName')) == 1:
+                self.params[3].enabled = True
                 mapList = []
                 for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[2].value + '.Domain_MapName',['code']):
                     mapList.append(row[0])
-                self.params[3].filter.list = sorted(set(mapList))     
+                self.params[3].filter.list = sorted(set(mapList))  
+            else:
+                self.params[3].enabled = False
+                self.params[3].value = None 
+        else:
+            self.params[2].enabled = False
+            self.params[2].value = None 
+            self.params[3].enabled = False
+            self.params[3].value = None 
         return
 
     def updateMessages(self):

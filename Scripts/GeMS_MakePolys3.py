@@ -369,10 +369,8 @@ elif simple_mode == False and getGDBType(gdb) == 'EGDB':
 
 
 #-------------------validation script----------
-import arcpy
-import glob
+import arcpy, os, glob
 from pathlib import Path
-import os
 sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
 from GeMS_utilityFunctions import *
 def editSessionActive(gdb):
@@ -401,16 +399,21 @@ class ToolValidator(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[4].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[4].enabled = True    
-
+        arcpy.env.workspace = gdb 
+        if getGDBType(gdb) == 'EGDB':
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
-            mapList = []
-            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
-                mapList.append(row[0])
-            self.params[4].filter.list = sorted(set(mapList))  
+            if len(arcpy.ListTables(db_schema + '.Domain_MapName')) == 1:
+                self.params[4].enabled = True    
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[4].filter.list = sorted(set(mapList))
+            else:
+                self.params[4].enabled = False
+                self.params[4].value = None            
+        else:
+            self.params[4].enabled = False
+            self.params[4].value = None
         return
 
     def updateMessages(self):

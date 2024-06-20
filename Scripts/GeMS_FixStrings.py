@@ -14,13 +14,20 @@ checkVersion(versionString, rawurl, "gems-tools-pro")
 
 def fixTableStrings(fc, ws, whereclause):
     # addMsgAndPrint(f'fc: {fc} :: ws: {ws}')
+    
+    # if multimap enabled enterprise geodatabase, exclude tool from running on tables where user doesn't have edit permissions
+    excludedtables = ['GeoMaterialDict', 'Domain_MapName', 'DataValidation']
+    if getGDBType(ws) == 'EGDB':
+        for excludedtable in excludedtables:
+            if tb.find(excludedtable) > -1:
+                #addMsgAndPrint('..not processed')
+                return
+
     fields1 = arcpy.ListFields(os.path.join(ws,fc), "", "String")
     fields = ["OBJECTID"]
     for f in fields1:
         fields.append(f.name)
-    if getGDBType(ws) == 'EGDB' and 'MapName' not in fields:
-        #addMsgAndPrint('..not processed')
-        return
+
     edit = arcpy.da.Editor(ws)
     edit.startEditing(False, True)
     edit.startOperation()    
@@ -61,7 +68,10 @@ input_mapname = arcpy.GetParameterAsText(2)
 addMsgAndPrint(versionString)
 arcpy.env.workspace = gdb
 
-if getGDBType(gdb) == 'FileGDB':
+if getGDBType(gdb) == 'EGDB' and input_mapname == '':
+    input_mapname = 'FullEGDB'
+    
+if getGDBType(gdb) == 'FileGDB' or input_mapname == 'FullEGDB':
     whereclause = "OBJECTID > 0"
 elif getGDBType(gdb) == 'EGDB':
     whereclause = "MapName = '" + input_mapname + "'"
@@ -109,13 +119,8 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.
         gdb = self.params[0].valueAsText
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[1].enabled = False
-            self.params[2].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[1].enabled = True    
-            self.params[2].enabled = True 
-
+        if getGDBType(gdb) == 'EGDB':
+            self.params[1].enabled = True 
             schemaList = []
             arcpy.env.workspace = gdb  
             datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
@@ -123,11 +128,20 @@ class ToolValidator:
                 schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
             self.params[1].filter.list = sorted(set(schemaList))	
 
-            if self.params[1].value is not None:
+            if self.params[1].value is not None and len(arcpy.ListTables(self.params[1].value + '.Domain_MapName')) == 1:
+                self.params[2].enabled = True
                 mapList = []
                 for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[1].value + '.Domain_MapName',['code']):
                     mapList.append(row[0])
-                self.params[2].filter.list = sorted(set(mapList))         
+                self.params[2].filter.list = sorted(set(mapList))   
+            else:
+                self.params[2].enabled = False
+                self.params[2].value = None
+        else:
+            self.params[1].enabled = False
+            self.params[1].value = None
+            self.params[2].enabled = False
+            self.params[2].value = None
         return
 
     def updateMessages(self):

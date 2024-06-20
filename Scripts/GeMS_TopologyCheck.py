@@ -956,6 +956,9 @@ input_mapname = arcpy.GetParameterAsText(2)
 
 inGdb = os.path.dirname(inFds)
 
+if getGDBType(inGdb) == 'EGDB' and input_mapname == '':
+    input_mapname = 'FullEGDB'
+
 if getGDBType(inGdb) == 'FileGDB':
     outWksp = inGdb[:-4] + "_Topology"
 elif getGDBType(inGdb) == 'EGDB':
@@ -996,7 +999,7 @@ addMsgAndPrint(
 addMsgAndPrint(" ")
 
 outHtml = open(os.path.join(outWksp, outFdsName + ".html"), "w")
-if getGDBType(inGdb) == 'FileGDB':
+if getGDBType(inGdb) == 'FileGDB' or input_mapname == 'FullEGDB':
     hKeyDict, sortedUnits = buildHKeyDict(DMU, "OBJECTID > -1")
 elif getGDBType(inGdb) == 'EGDB':
     hKeyDict, sortedUnits = buildHKeyDict(DMU, "MapName = '" + input_mapname + "'")
@@ -1017,7 +1020,7 @@ for t in topologies:
 for infc in (inCaf, inMup):
     outfc = os.path.join(outFds, os.path.basename(infc).replace('.','_'))
     testAndDelete(outfc)
-    if getGDBType(inGdb) == 'FileGDB':
+    if getGDBType(inGdb) == 'FileGDB' or input_mapname == 'FullEGDB':
         arcpy.Copy_management(infc, outfc)
     elif getGDBType(inGdb) == 'EGDB':
         arcpy.management.MakeFeatureLayer(infc, 'in_layer', "MapName = '" + input_mapname + "'")
@@ -1214,16 +1217,21 @@ class ToolValidator(object):
         validation is performed. This method is called whenever a parameter
         has been changed."""
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[2].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[2].enabled = True    
-
+        arcpy.env.workspace = gdb 
+        if getGDBType(gdb) == 'EGDB':
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
-            mapList = []
-            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
-                mapList.append(row[0])
-            self.params[2].filter.list = sorted(set(mapList))              
+            if len(arcpy.ListTables(db_schema + '.Domain_MapName')) == 1:
+                self.params[2].enabled = True
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[2].filter.list = sorted(set(mapList))              
+            else:
+                self.params[2].enabled = False  
+                self.params[2].value = None                 
+        else:
+            self.params[2].enabled = False  
+            self.params[2].value = None            
         return
         
     def updateMessages(self):

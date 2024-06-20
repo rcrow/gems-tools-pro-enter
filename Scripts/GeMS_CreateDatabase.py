@@ -211,7 +211,8 @@ def main(thisDB, coordSystem, nCrossSections):
     # create feature dataset GeologicMap
     addMsgAndPrint("  Creating feature dataset GeologicMap...")
     #adds multimap fields to tableDict if creating an EGDB or removes them if they are in tableDict and creating a file geodatabase
-    if thisDB[-4:] == ".sde":
+    # if thisDB[-4:] == ".sde":
+    if getGDBType(thisDB) == 'EGDB' and multimap:
         for table in tableDict.keys():
             #addMsgAndPrint(table)
             for field in multimap_fields:
@@ -403,17 +404,17 @@ def main(thisDB, coordSystem, nCrossSections):
             # ParagraphStyleValues domain
             arcpy.AddMessage("    Creating domain ParagraphStyleValues")
             arcpy.CreateDomain_management(
-                thisDB, "ParagraphStyleValues", "", "TEXT", "CODED", "DUPLICATE"
+                thisDB, dbNameUserPrefix + "ParagraphStyleValues", "", "TEXT", "CODED", "DUPLICATE"
             )
             for val in ParagraphStyleValues:
                 arcpy.AddCodedValueToDomain_management(
-                    thisDB, "ParagraphStyleValues", val, val
+                    thisDB, dbNameUserPrefix + "ParagraphStyleValues", val, val
                 )
 
             arcpy.AssignDomainToField_management(
-                thisDB + "/DescriptionOfMapUnits",
+                thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0],
                 "ParagraphStyle",
-                "ParagraphStyleValues",
+                dbNameUserPrefix + "ParagraphStyleValues",
             )
 
     ### GeoMaterials
@@ -428,11 +429,11 @@ def main(thisDB, coordSystem, nCrossSections):
     desc = arcpy.Describe(thisDB)
     if dbNameUserPrefix + "GeoMaterials" not in desc.domains:
         arcpy.TableToDomain_management(
-            thisDB + "/GeoMaterialDict",
+            thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'GeoMaterialDict')[0],
             "GeoMaterial",
             "IndentedName",
             thisDB,
-            "GeoMaterials",
+            dbNameUserPrefix + "GeoMaterials"
     )
     #   attach it to DMU field GeoMaterial
     arcpy.AssignDomainToField_management(
@@ -441,18 +442,18 @@ def main(thisDB, coordSystem, nCrossSections):
     #  Make GeoMaterialConfs domain, attach it to DMU field GeoMaterialConf
     desc = arcpy.Describe(thisDB)
     if dbNameUserPrefix + "GeoMaterialConfidenceValues" not in desc.domains:  
-    arcpy.CreateDomain_management(                                                              
-            thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
-    )
-    for val in GeoMaterialConfidenceValues:
-        arcpy.AddCodedValueToDomain_management(
-            thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", val, val
+        arcpy.CreateDomain_management(                                                              
+                thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", "", "TEXT", "CODED", "DUPLICATE"
         )
-    arcpy.AssignDomainToField_management(
-        thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0],
-        "GeoMaterialConfidence",
-        dbNameUserPrefix + "GeoMaterialConfidenceValues",
-    )
+        for val in GeoMaterialConfidenceValues:
+            arcpy.AddCodedValueToDomain_management(
+                thisDB, dbNameUserPrefix + "GeoMaterialConfidenceValues", val, val
+            )
+        arcpy.AssignDomainToField_management(
+            thisDB + "/" + arcpy.ListTables(dbNameUserPrefix + 'DescriptionOfMapUnits')[0],
+            "GeoMaterialConfidence",
+            dbNameUserPrefix + "GeoMaterialConfidenceValues",
+        )
 
     # Confidence domains, Glossary entries, and DataSources entry
     if addConfs:
@@ -513,8 +514,9 @@ def main(thisDB, coordSystem, nCrossSections):
         del cursor
 
     #if EGDB then add multimap domains to fields
-    if thisDB[-4:] == ".sde":
-        addMsgAndPrint("    Adding multimap domains and assigning to fields")
+    # if thisDB[-4:] == ".sde":
+    if getGDBType(thisDB) == 'EGDB' and multimap:
+        addMsgAndPrint("Adding multimap MapNameValues domain and assigning to fields")
         
         #  Make MapScale domain, attach it to MapScale field 
         desc = arcpy.Describe(thisDB)
@@ -533,35 +535,14 @@ def main(thisDB, coordSystem, nCrossSections):
             if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
                 arcpy.AssignDomainToField_management(tbl,"MapName",dbNameUserPrefix + "MapNameValues")  
                 
-        # #  Make MapType domain, attach it to MapType field 
-        # arcpy.CreateDomain_management(thisDB, "MapTypeValues", "", "TEXT", "CODED")
-        # for val in MapTypeValues:
-            # arcpy.AddCodedValueToDomain_management(thisDB, "MapTypeValues", val, val)
-        # arcpy.env.workspace = thisDB
-        # dataSets = arcpy.ListDatasets()
-        # for ds in dataSets:
-            # arcpy.env.workspace = thisDB + "/" + ds
-            # for fc in arcpy.ListFeatureClasses():
-                # arcpy.AssignDomainToField_management(fc,"MapType","MapTypeValues")   
-        # arcpy.env.workspace = thisDB
-        # for tbl in arcpy.ListTables():
-            # if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
-                # arcpy.AssignDomainToField_management(tbl,"MapType","MapTypeValues")
-
-        # #  Make MapScale domain, attach it to MapScale field 
-        # arcpy.CreateDomain_management(thisDB, "MapScaleValues", "", "TEXT", "CODED")
-        # for val in MapScaleValues:
-            # arcpy.AddCodedValueToDomain_management(thisDB, "MapScaleValues", val, val)
-        # arcpy.env.workspace = thisDB
-        # dataSets = arcpy.ListDatasets()
-        # for ds in dataSets:
-            # arcpy.env.workspace = thisDB + "/" + ds
-            # for fc in arcpy.ListFeatureClasses():
-                # arcpy.AssignDomainToField_management(fc,"MapScale","MapScaleValues")   
-        # arcpy.env.workspace = thisDB
-        # for tbl in arcpy.ListTables():
-            # if tbl[len(tbl)-len('GeoMaterialDict'):] != 'GeoMaterialDict':
-                # arcpy.AssignDomainToField_management(tbl,"MapScale","MapScaleValues") 
+        addMsgAndPrint("Adding multimap Domain_MapName view")
+        #arcpy.management.CreateDatabaseView(thisDB, "Domain_MapName", strSQL)
+        egdb_conn = arcpy.ArcSDESQLExecute(thisDB)        
+        strSQL = "CREATE OR ALTER VIEW Domain_MapName AS SELECT CAST(ROW_NUMBER() OVER (ORDER BY GDB_ITEMS.Name) AS int) AS OBJECTID, N.C.value('Code[1]', 'Varchar(100)') AS 'code', N.C.value('Name[1]', 'Varchar(500)') AS 'description' FROM GDB_ITEMS JOIN GDB_ITEMTYPES ON GDB_ITEMS.Type = GDB_ITEMTYPES.UUID CROSS APPLY Definition.nodes('" + '/' + "GPCodedValueDomain2" + '/' + "CodedValues" + '/' + "CodedValue') N(C) WHERE GDB_ITEMTYPES.Name = 'Coded Value Domain' AND GDB_ITEMS.[Name] = '" + dbNameUserPrefix + "MapNameValues'"
+        egdb_conn.execute(strSQL)
+        arcpy.management.RegisterWithGeodatabase(thisDB + "/" + dbNameUserPrefix + "Domain_MapName", "OBJECTID", None, '', None, None)
+        
+        
     # if cartoReps, add cartographic representations to all feature classes
     # trackEdits, add editor tracking to all feature classes and tables
     if cartoReps or trackEdits:
@@ -710,11 +691,21 @@ if len(sys.argv) >= 6:
     except:
         addConfs = False
 
+    try:
+        if sys.argv[10] == "true" and getGDBType(outputDir) == 'EGDB':
+            multimap = True
+        else:
+            multimap = False
+    except:
+        multimap = False
+        
     # create gdb in output directory and run main routine
     if createDatabase(outputDir, thisDB):
-        if outputDir[-4:] == ".sde":
+        # if outputDir[-4:] == ".sde":
+        if getGDBType(outputDir) == 'EGDB':
             thisDB = outputDir   #points to .sde file   
-        elif outputDir[-4:] == ".gdb":                         
+        # elif outputDir[-4:] == ".gdb":   
+        elif getGDBType(outputDir) == 'FileGDB':
             thisDB = os.path.join(outputDir, thisDB)
         # Arc 10 version refreshed ArcCatalog here, but there is no equivalent with AGPro
         if debug:
@@ -731,3 +722,41 @@ if len(sys.argv) >= 6:
 
 else:
     addMsgAndPrint(usage)
+
+
+
+
+#-------------------validation script----------
+import arcpy
+sys.path.insert(1, os.path.join(os.path.dirname(__file__),'Scripts'))
+from GeMS_utilityFunctions import *
+
+class ToolValidator(object):
+  """Class for validating a tool's parameter values and controlling
+  the behavior of the tool's dialog."""
+
+  def __init__(self):
+    """Setup arcpy and the list of tool parameters."""
+    self.params = arcpy.GetParameterInfo()
+
+  def initializeParameters(self):
+    """Refine the properties of a tool's parameters.  This method is
+    called when the tool is opened."""
+    self.params[9].enabled = False
+    return
+
+  def updateParameters(self):
+    """Modify the values and properties of parameters before internal
+    validation is performed.  This method is called whenever a parameter
+    has been changed."""
+    gdb = self.params[0].valueAsText
+    if getGDBType(gdb) == 'EGDB':
+        self.params[9].enabled = True 
+    else:
+        self.params[9].enabled = False
+    return
+
+  def updateMessages(self):
+    """Modify the messages created by internal validation for each tool
+    parameter.  This method is called after internal validation."""
+    return

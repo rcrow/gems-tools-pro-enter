@@ -896,17 +896,7 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.    
         gdb = self.params[0].valueAsText
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[1].enabled = True
-            self.params[2].enabled = True
-            self.params[5].enabled = True
-            self.params[8].enabled = True
-            self.params[9].enabled = True
-            self.params[10].enabled = True
-            self.params[13].enabled = False
-            self.params[14].enabled = False
-            self.params[15].enabled = False          
-        elif getGDBType(gdb) == 'EGDB':
+        if getGDBType(gdb) == 'EGDB':
             self.params[1].enabled = False
             self.params[2].enabled = False
             self.params[5].value = "LOWER_LEFT"
@@ -926,11 +916,25 @@ class ToolValidator:
                 schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
             self.params[13].filter.list = sorted(set(schemaList))	
 
-            if self.params[13].value is not None:
+            if self.params[13].value is not None and len(arcpy.ListTables(self.params[13].value + '.Domain_MapName')) == 1:
+                self.params[14].enabled = True
                 mapList = []
                 for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[13].value + '.Domain_MapName',['code']):
                     mapList.append(row[0])
-                self.params[14].filter.list = sorted(set(mapList))     
+                self.params[14].filter.list = sorted(set(mapList))   
+            else:
+                self.params[14].enabled = False
+                self.params[14].value = None 
+        else:
+            self.params[1].enabled = True
+            self.params[2].enabled = True
+            self.params[5].enabled = True
+            self.params[8].enabled = True
+            self.params[9].enabled = True
+            self.params[10].enabled = True
+            self.params[13].enabled = False
+            self.params[14].enabled = False
+            self.params[15].enabled = False
         return
 
     def updateMessages(self):

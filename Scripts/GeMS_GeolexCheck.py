@@ -170,7 +170,9 @@ def table_to_pandas_data_frame(feature_class):
     available on any other computer
     """
     field_list = ["hierarchykey", "mapunit", "name", "fullname", "age"]
-    if guf.getGDBType(feature_class) == 'EGDB':
+    if guf.getGDBType(feature_class) == 'EGDB' and input_mapname == '':
+        feature_class = arcpy.management.MakeTableView(feature_class, 'dmuMapName', "OBJECTID > 0")
+    elif guf.getGDBType(feature_class) == 'EGDB' and input_mapname != '':
         feature_class = arcpy.management.MakeTableView(feature_class, 'dmuMapName', "MapName = '" + input_mapname + "'")  
     return pd.DataFrame(
         arcpy.da.TableToNumPyArray(
@@ -384,7 +386,7 @@ if len(sys.argv) == 1:
     print(__doc__)
     quit()
 
-arcpy.AddMessage(versionString)
+#arcpy.AddMessage(versionString)
 
 # collect the path to the DMU table
 dmu = arcpy.GetParameterAsText(0)
@@ -399,6 +401,9 @@ if ".xlsx" in dmu or ".xls" in dmu:
 dmu_home = os.path.dirname(dmu)
 # figure out what the file format is
 
+if guf.getGDBType(dmu_home) == 'EGDB' and input_mapname == '':
+    input_mapname = 'FullEGDB'
+    
 if guf.getGDBType(dmu_home) == 'EGDB':  # os.path.splitext(dmu_home)[1] == ".sde":
     out_name = input_mapname
     if '.gdb' in arcpy.env.scratchWorkspace:
@@ -694,16 +699,20 @@ class ToolValidator(object):
         validation is performed. This method is called whenever a parameter
         has been changed."""
         gdb = os.path.dirname(self.params[0].valueAsText)
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[3].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
-            self.params[3].enabled = True    
-
+        if getGDBType(gdb) == 'EGDB':
             db_schema = os.path.basename(self.params[0].valueAsText).split('.')[0] + '.' + os.path.basename(self.params[0].valueAsText).split('.')[1]
-            mapList = []
-            for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
-                mapList.append(row[0])
-            self.params[3].filter.list = sorted(set(mapList))         
+            if len(arcpy.ListTables(db_schema + '.Domain_MapName')) == 1:
+                self.params[3].enabled = True    
+                mapList = []
+                for row in arcpy.da.SearchCursor(gdb + '\\' + db_schema + '.Domain_MapName',['code']):
+                    mapList.append(row[0])
+                self.params[3].filter.list = sorted(set(mapList))         
+            else:
+                self.params[3].enabled = False
+                self.params[3].value = None        
+        else:
+            self.params[3].enabled = False
+            self.params[3].value = None                
         return        
 
     def updateMessages(self):

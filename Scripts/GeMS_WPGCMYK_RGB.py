@@ -10,10 +10,13 @@ fields = ('Symbol','AreaFillRGB')
 if getGDBType(gdb) == 'FileGDB':
     dmu = gdb + '/DescriptionOfMapUnits'
     whereclause = "OBJECTID > 0"
-elif getGDBType(gdb) == 'EGDB':
+elif getGDBType(gdb) == 'EGDB' and input_mapname == '':
+    dmu = os.path.join(gdb + '/' + input_schema + '.DescriptionOfMapUnits')
+    whereclause = "OBJECTID > 0"
+elif getGDBType(gdb) == 'EGDB' and input_mapname != '':
     dmu = os.path.join(gdb + '/' + input_schema + '.DescriptionOfMapUnits')
     whereclause = "MapName = '" + input_mapname + "'"
-
+    
 edit = arcpy.da.Editor(gdb)
 edit.startEditing(False, True)
 edit.startOperation()     
@@ -60,13 +63,8 @@ class ToolValidator:
         # This gets called each time a parameter is modified, before 
         # standard validation.
         gdb = self.params[0].valueAsText
-        if getGDBType(gdb) == 'FileGDB':
-            self.params[1].enabled = False
-            self.params[2].enabled = False
-        elif getGDBType(gdb) == 'EGDB':
+        if getGDBType(gdb) == 'EGDB':
             self.params[1].enabled = True    
-            self.params[2].enabled = True 
-
             schemaList = []
             arcpy.env.workspace = gdb  
             datasets = arcpy.ListDatasets("*GeologicMap*", "Feature")	
@@ -74,11 +72,20 @@ class ToolValidator:
                 schemaList.append(dataset.split('.')[0] + '.' + dataset.split('.')[1])
             self.params[1].filter.list = sorted(set(schemaList))	
 
-            if self.params[1].value is not None:
+            if self.params[1].value is not None and len(arcpy.ListTables(self.params[1].value + '.Domain_MapName')) == 1:
+                self.params[2].enabled = True
                 mapList = []
                 for row in arcpy.da.SearchCursor(gdb + '\\' + self.params[1].value + '.Domain_MapName',['code']):
                     mapList.append(row[0])
-                self.params[2].filter.list = sorted(set(mapList))                 
+                self.params[2].filter.list = sorted(set(mapList)) 
+            else:
+                self.params[2].enabled = False
+                self.params[2].value = None 
+        else:
+            self.params[1].enabled = False
+            self.params[1].value = None 
+            self.params[2].enabled = False
+            self.params[2].value = None                 
         return
 
     def updateMessages(self):

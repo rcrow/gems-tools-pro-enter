@@ -645,28 +645,15 @@ req_source_ids = [
 ]
 
 # #---7/25/2023 CHH, map type and scale domain lists-------------------------------
-# MapTypeValues = [
-    # "Bedrock", 
-    # "Surficial"
-# ]
-# MapScaleValues = [
-    # "24000",
-    # "100000",
-    # "250000",
-    # "500000"
-# ]
 MapNameValues = [
-    "augusta",
-    "beaver-pond-se",
-    "camden",
-    "west-rockport"
+    "map1",
+    "map2",
+    "map3"
 ]
  
 #---7/25/2023 CHH, fields needed in each entity for multimap enterprise geodatabase
 multimap_fields = [
     ["MapName", "String", "NoNulls", 100],
-    # ["MapType", "String", "NoNulls", 30],
-    # ["MapScale", "String", "NoNulls", 12]
 ]
 #----------------------------------------------------------------------------------                                                                              
 

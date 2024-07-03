@@ -561,7 +561,7 @@ def planarizeAndGetArcEndPoints(fds, caf, mup, fdsToken):
     fns = fieldNameList(cafp)
     deleteFields = []
     for f in fieldNameList(mup):
-        if f != "MapUnit":
+        if f != "MapUnit" and f != "mapunit": #required for postgres db with lowercase field names
             for hf in ("RIGHT_" + f, "LEFT_" + f):
                 if hf in fns:
                     deleteFields.append(hf)
@@ -864,7 +864,7 @@ def findDupPts(inFds, outFds):
             if aF in allFields:
                 dupFields.append(aF)
         addMsgAndPrint("    fields to be compared: " + str(dupFields))
-        if getGDBType(inFds) == 'FileGDB':
+        if getGDBType(inFds) == 'FileGDB' or input_mapname == 'FullEGDB': #
             arcpy.FindIdentical_management(inFds + "/" + fc, newTb, dupFields, "", "", "ONLY_DUPLICATES")
         elif getGDBType(inFds) == 'EGDB':
             arcpy.management.MakeFeatureLayer(inFds + "/" + fc, 'in_layer_' + fc.replace('.','_'), "MapName = '" + input_mapname + "'")

@@ -58,7 +58,7 @@ import arcpy, os, sys, math, os.path, operator, time
 from GeMS_utilityFunctions import *
 
 # see gems-tools-pro version<=2.2.2 to get earlier TopologyCheck tool
-versionString = "GeMS_TopologyCheck.py, version of 8/21/23"
+versionString = "GeMS_TopologyCheck.py, modified versions from 7/3/2024-3"
 rawurl = "https://raw.githubusercontent.com/DOI-USGS/gems-tools-pro/master/Scripts/GeMS_TopologyCheck.py"
 checkVersion(versionString, rawurl, "gems-tools-pro")
 
@@ -242,7 +242,7 @@ def makeNodeFC(fd, fc):
     # add fields nArcs, ArcOIDs, ArcTypes, Note
     arcpy.AddField_management(fdfc, "nArcs", "SHORT")
     for f in ["ArcOIDs", "ArcTypes", "Note"]:
-        arcpy.AddField_management(fdfc, f, "TEXT", "", "", 500)
+        arcpy.AddField_management(fdfc, f, "TEXT", "", "", 1500) #TODO updated this to 1000 because really long type values were being used but should fix that and move it back to 500
     return fdfc
 
 
@@ -1039,6 +1039,8 @@ planarizedCAF, arcEndPoints = planarizeAndGetArcEndPoints(outFds, caf, mup, fdsT
 
 # sort arcEndPoints into list of nodes
 nodeList = getNodes(arcEndPoints)
+
+addMsgAndPrint(str(hKeyDict))
 # assign nodes to various groups
 badNodes, faultFlipNodes, missingConcealedArcNodes, connectFIDs = processNodes(
     nodeList, hKeyDict
